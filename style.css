@@ -129,8 +129,8 @@ input[type="file"] {
 
 .drop-zone .file-name {
 	margin-top: 8px;
-	font-size: 13px;
-	color: #9ea3a8;
+	font-size: 16px;
+	color: white;
 }
 
 /* Controls */

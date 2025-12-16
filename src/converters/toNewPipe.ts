@@ -251,51 +251,103 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
     throw e;
   }
 
-  // --- History (Stream State) ---
+  // --- History (Stream State + Stream History) ---
   try {
     log("Processing Watch History...");
     let histCount = 0;
-    if (ltData.history) {
+    const historyArray = ltData.history || ltData.watchHistory || ltData.watch_history || ltData.watch_history_items || [];
+
+    if (historyArray && historyArray.length > 0) {
       const streamInsert = db.prepare("INSERT OR IGNORE INTO streams (service_id, url, title, stream_type, duration, uploader, upload_date, thumbnail_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-      const stateInsert = db.prepare("INSERT OR REPLACE INTO stream_state (stream_id, progress_time) VALUES (?, ?)");
+      const stateInsert = db.prepare("INSERT OR REPLACE INTO stream_state (progress_time, stream_id) VALUES (?, ?)");
+      const historyInsert = db.prepare("INSERT OR REPLACE INTO stream_history (stream_id, access_date, repeat_count) VALUES (?, ?, ?)");
 
-      for (const vid of ltData.history) {
+      for (const vid of historyArray) {
         try {
-            const vidUrl = `https://www.youtube.com/watch?v=${vid.videoId}`;
-            if (!vid.videoId) continue;
+          // Video id may be in several places
+          const vidId = vid.videoId || vid.videoIdStr || vid.id || (vid.url && (vid.url.match(/v=([^&]+)/) || [])[1]);
+          if (!vidId) continue;
+          const vidUrl = `https://www.youtube.com/watch?v=${vidId}`;
 
-            const streamTitle = vid.title || "Unknown";
-            const uploaderName = vid.uploader || "Unknown";
-            const durationSec = vid.duration || 0;
-            const uploadDateTs = vid.uploadDate ? new Date(vid.uploadDate).getTime() / 1000 : null;
-            const thumbnailUrl = vid.thumbnailUrl || null;
-            // LibreTube usually stores currentTime in seconds (float or int). NewPipe expects ms.
-            const progressTime = Math.floor((vid.currentTime || 0) * 1000);
+          const streamTitle = vid.title || vid.name || "Unknown";
+          const uploaderName = vid.uploader || vid.uploaderName || "Unknown";
+          const durationSec = vid.duration || vid.length || 0;
+          const uploadDateTs = vid.uploadDate ? (isNaN(Number(vid.uploadDate)) ? Math.floor(new Date(vid.uploadDate).getTime() / 1000) : Math.floor(Number(vid.uploadDate))) : null;
+          const thumbnailUrl = vid.thumbnailUrl || vid.thumbnail || null;
 
-            streamInsert.run([
-                SERVICE_ID_YOUTUBE,
-                vidUrl,
-                streamTitle,
-                "VIDEO_STREAM",
-                durationSec,
-                uploaderName,
-                uploadDateTs,
-                thumbnailUrl
-            ]);
+          // progress: LibreTube tends to store seconds; NewPipe expects milliseconds.
+          const progressSeconds = vid.currentTime || vid.position || vid.progress || 0;
+          const progressTime = Math.floor(Number(progressSeconds || 0) * 1000);
 
-            const streamIdRes = db.exec(`SELECT uid FROM streams WHERE service_id=${SERVICE_ID_YOUTUBE} AND url='${vidUrl.replace(/'/g, "''")}'`);
-            if (streamIdRes.length > 0 && streamIdRes[0].values.length > 0) {
-                const streamId = streamIdRes[0].values[0][0];
-                stateInsert.run([streamId, progressTime]);
-                histCount++;
+          // access date: try multiple fields, accept ISO or epoch (ms or s)
+          let accessRaw = vid.accessDate || vid.accessedAt || vid.lastWatched || vid.timestamp || vid.date || vid.time;
+          let accessDateSec: number;
+          if (!accessRaw) {
+            accessDateSec = Math.floor(Date.now() / 1000);
+          } else if (typeof accessRaw === 'number') {
+            // if too large, assume ms
+            accessDateSec = accessRaw > 1e12 ? Math.floor(accessRaw / 1000) : Math.floor(accessRaw);
+          } else {
+            const parsed = Date.parse(String(accessRaw));
+            accessDateSec = isNaN(parsed) ? Math.floor(Date.now() / 1000) : Math.floor(parsed / 1000);
+          }
+
+          const repeatCount = vid.repeatCount || vid.watchCount || vid.playCount || vid.repeat_count || 1;
+
+          // insert stream (if not present)
+          streamInsert.run([
+            SERVICE_ID_YOUTUBE,
+            vidUrl,
+            streamTitle,
+            "VIDEO_STREAM",
+            durationSec,
+            uploaderName,
+            uploadDateTs,
+            thumbnailUrl
+          ]);
+
+          const streamIdRes = db.exec(`SELECT uid FROM streams WHERE service_id=${SERVICE_ID_YOUTUBE} AND url='${vidUrl.replace(/'/g, "''")}'`);
+          if (streamIdRes.length > 0 && streamIdRes[0].values.length > 0) {
+            const streamId = streamIdRes[0].values[0][0];
+
+            // stream_state: store latest progress (insert/replace)
+            try {
+              stateInsert.run([progressTime, streamId]);
+            } catch (e: any) {
+              log(`WARN: failed to write stream_state for ${vidId}: ${e.message || e.toString()}`, "warn");
             }
+
+            // stream_history: primary key is (stream_id, access_date). Merge semantics: sum repeat_count for same access_date when merging.
+            try {
+              if (mode === 'merge') {
+                const existing = db.exec(`SELECT repeat_count FROM stream_history WHERE stream_id = ${streamId} AND access_date = ${accessDateSec}`);
+                if (existing && existing.length > 0 && existing[0].values.length > 0) {
+                  const old = Number(existing[0].values[0][0]) || 0;
+                  const combined = old + Number(repeatCount || 1);
+                  db.run(`UPDATE stream_history SET repeat_count = ${combined} WHERE stream_id = ${streamId} AND access_date = ${accessDateSec}`);
+                } else {
+                  historyInsert.run([streamId, accessDateSec, Number(repeatCount || 1)]);
+                }
+              } else {
+                // generate/new DB
+                historyInsert.run([streamId, accessDateSec, Number(repeatCount || 1)]);
+              }
+            } catch (e: any) {
+              log(`WARN: failed to write stream_history for ${vidId}: ${e.message || e.toString()}`, "warn");
+            }
+
+            histCount++;
+          }
         } catch (e: any) {
-            log(`ERROR processing history item: ${e.message}`, "warn");
+          log(`ERROR processing history item: ${e.message || e.toString()}`, "warn");
         }
       }
+
       streamInsert.free();
       stateInsert.free();
+      historyInsert.free();
     }
+
     log(`Processed ${histCount} history items.`);
   } catch (e: any) {
     log(`Error processing history: ${e.message}`, "err");
