@@ -4,7 +4,7 @@ import { getTimestamp, downloadFile } from '../utils';
 import { createSchema, ensureStreamStateSchema } from '../sqlHelper';
 import JSZip from 'jszip';
 
-export async function convertToNewPipe(npFile: File | undefined, ltFile: File, mode: string, SQL: any) {
+export async function convertToNewPipe(npFile: File | undefined, ltFile: File, mode: string, SQL: any, playlistBehavior?: string) {
   log("Starting conversion to NewPipe format...");
 
   let db: any;
@@ -12,6 +12,9 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
   let streamStateDebug = '';
   let existingPreferences: any = null;
   let existingSettings: any = null;
+  // playlist behavior passed from UI
+  const pb = playlistBehavior || null;
+  let skipPlaylistImport = false;
 
   // 1. Setup DB
   if (mode === 'merge' && npFile) {
@@ -132,26 +135,51 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
   // --- Playlists ---
   try {
     log("Processing Playlists...");
+    // Handle playlist behavior for merges. Values expected from UI:
+    // 'merge_np_precedence', 'merge_lt_precedence', 'only_newpipe', 'only_libretube'
+    let skipPlaylistImport = false;
+    const pb = playlistBehavior || null;
     if (mode === 'merge') {
-      db.run("DELETE FROM playlists");
-      db.run("DELETE FROM playlist_stream_join");
-      db.run("DELETE FROM remote_playlists");
-      log("Cleared existing playlists and joins.");
+      if (pb === 'only_libretube') {
+        db.run("DELETE FROM playlist_stream_join");
+        db.run("DELETE FROM playlists");
+        db.run("DELETE FROM remote_playlists");
+        log("Cleared existing playlists; will import only LibreTube playlists.");
+      } else if (pb === 'only_newpipe') {
+        // preserve existing NewPipe playlists and don't import any from LibreTube
+        skipPlaylistImport = true;
+        log("Preserving existing NewPipe playlists; skipping import from LibreTube.");
+      } else {
+        // For merge precedence modes, handle conflicts per-playlist below.
+        log(`Merging playlists with behavior: ${pb || 'default (LibreTube precedence)'}`);
+      }
     }
 
     let plCount = 0;
-    if (ltData.localPlaylists) {
+    if (ltData.localPlaylists && !skipPlaylistImport) {
       const streamInsert = db.prepare("INSERT OR IGNORE INTO streams (service_id, url, title, stream_type, duration, uploader, upload_date, thumbnail_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
       const playlistInsert = db.prepare("INSERT INTO playlists (name, is_thumbnail_permanent, thumbnail_stream_id, display_index) VALUES (?, ?, ?, ?)");
       const joinInsert = db.prepare("INSERT INTO playlist_stream_join (playlist_id, stream_id, join_index) VALUES (?, ?, ?)");
 
       for (const lp of ltData.localPlaylists) {
         const plName = lp.playlist.name || "Untitled";
-        try {
+          try {
           const tempRes = db.exec(`SELECT uid FROM playlists WHERE name = '${plName.replace(/'/g, "''")}'`);
           if (tempRes.length > 0) {
-            log(`Skipping duplicate local playlist: ${plName}`, "warn");
-            continue;
+            // Duplicate exists in target: respect precedence
+            if (pb === 'merge_lt_precedence') {
+              const existingId = tempRes[0].values[0][0];
+              try {
+                db.run(`DELETE FROM playlist_stream_join WHERE playlist_id = ${existingId}`);
+                db.run(`DELETE FROM playlists WHERE uid = ${existingId}`);
+                log(`Replaced existing local playlist: ${plName}`, "schema");
+              } catch (e: any) {
+                log(`WARN: failed to replace playlist ${plName}: ${e.message || e.toString()}`, "warn");
+              }
+            } else {
+              log(`Skipping duplicate local playlist: ${plName}`, "warn");
+              continue;
+            }
           }
 
           playlistInsert.run([plName, 0, -1, plCount]);
@@ -224,7 +252,7 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
     let rplCount = 0;
     const stmt = db.prepare("INSERT INTO remote_playlists (service_id, name, url, thumbnail_url, uploader, display_index, stream_count) VALUES (?, ?, ?, ?, ?, ?, ?)");
 
-    if (ltData.playlistBookmarks) {
+    if (ltData.playlistBookmarks && !skipPlaylistImport) {
       for (const rb of ltData.playlistBookmarks) {
         try {
           const url = rb.url || (rb.playlistId ? `https://www.youtube.com/playlist?list=${rb.playlistId}` : null);
@@ -237,6 +265,23 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
           const thumbnailUrl = rb.thumbnailUrl || null;
           const uploader = rb.uploader || "Unknown";
           const streamCount = typeof rb.videos === 'number' ? rb.videos : 0;
+
+          // handle duplicate remote playlists according to precedence
+          try {
+            const existing = db.exec(`SELECT uid FROM remote_playlists WHERE url = '${url.replace(/'/g, "''")}' OR name = '${playlistName.replace(/'/g, "''")}'`);
+            if (existing && existing.length > 0 && existing[0].values.length > 0) {
+              if (pb === 'merge_np_precedence') {
+                // NewPipe precedence: keep existing remote playlist, skip importing this one
+                continue;
+              } else if (pb === 'merge_lt_precedence') {
+                // LibreTube precedence: remove existing and replace
+                const existingId = existing[0].values[0][0];
+                db.run(`DELETE FROM remote_playlists WHERE uid = ${existingId}`);
+              }
+            }
+          } catch {
+            // proceed to insert if duplicate-check fails
+          }
 
           stmt.run([
             SERVICE_ID_YOUTUBE,

@@ -3,7 +3,7 @@ import { log } from '../logger';
 import { getTimestamp, downloadFile } from '../utils';
 import JSZip from 'jszip';
 
-export async function convertToLibreTube(npFile: File | undefined, ltFile: File | undefined, mode: string, SQL: any) {
+export async function convertToLibreTube(npFile: File | undefined, ltFile: File | undefined, mode: string, SQL: any, playlistBehavior?: string) {
   log("Starting conversion to LibreTube format...");
   
   let targetData: any = {
@@ -13,15 +13,30 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
     localPlaylists: [],
     preferences: [] 
   };
-
+  // playlist behavior handling
+  const pb = playlistBehavior || null;
+  let skipImportPlaylists = false;
   if (mode === 'merge' && ltFile) {
     log("Reading target LibreTube file...");
     const text = await ltFile.text();
     targetData = JSON.parse(text);
-    targetData.subscriptions = [];
-    targetData.playlistBookmarks = [];
-    targetData.localPlaylists = [];
-    log("Target LibreTube file loaded and old playlist/subscription data cleared for merge.");
+    // Decide how to treat existing playlists based on behavior
+    if (pb === 'only_newpipe') {
+      targetData.subscriptions = [];
+      targetData.playlistBookmarks = [];
+      targetData.localPlaylists = [];
+      log("Cleared target LibreTube playlists; will import only NewPipe playlists.");
+    } else if (pb === 'only_libretube') {
+      // preserve existing LibreTube playlists and skip importing from NewPipe
+      skipImportPlaylists = true;
+      log("Preserving existing LibreTube playlists; will skip importing NewPipe playlists.");
+    } else {
+      // merge modes: keep existing target lists and perform per-playlist precedence handling later
+      targetData.subscriptions = targetData.subscriptions || [];
+      targetData.playlistBookmarks = targetData.playlistBookmarks || [];
+      targetData.localPlaylists = targetData.localPlaylists || [];
+      log(`Merging playlists with behavior: ${pb || 'default (NewPipe precedence)'}`);
+    }
   }
 
   log("Reading NewPipe backup...");
@@ -82,7 +97,7 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
 
   log("Extracting Remote Playlists...");
   const remPlRes = db.exec(`SELECT name, url, uploader, thumbnail_url, stream_count FROM remote_playlists WHERE service_id = ${SERVICE_ID_YOUTUBE}`);
-  if (remPlRes.length > 0) {
+  if (remPlRes.length > 0 && !skipImportPlaylists) {
     const rows = remPlRes[0].values;
     rows.forEach((row: any) => {
       const url = row[1];
@@ -107,7 +122,7 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
 
   log("Extracting Local Playlists...");
   const playlistsRes = db.exec("SELECT uid, name FROM playlists");
-  if (playlistsRes.length > 0) {
+  if (playlistsRes.length > 0 && !skipImportPlaylists) {
     for (const plRow of playlistsRes[0].values) {
       const plId = plRow[0];
       const plName = plRow[1];
@@ -144,6 +159,19 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
       }
 
       if (videos.length > 0 || plName) {
+        // handle precedence: if a playlist with the same name exists in targetData,
+        // either replace it (NewPipe precedence) or skip (LibreTube precedence)
+        const existingIndex = targetData.localPlaylists.findIndex((p: any) => p.playlist && p.playlist.name === plName);
+        if (existingIndex >= 0) {
+          if (pb === 'merge_np_precedence') {
+            // NewPipe/source precedence: replace existing target playlist
+            targetData.localPlaylists.splice(existingIndex, 1);
+          } else {
+            // LibreTube precedence (or default): keep existing target playlist, skip adding
+            continue;
+          }
+        }
+
         targetData.localPlaylists.push({
           playlist: {
             id: plId,

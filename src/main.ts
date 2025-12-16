@@ -60,10 +60,13 @@ export async function processBackup(direction: 'to_newpipe' | 'to_libretube') {
 
   try {
     document.querySelectorAll('.controls button').forEach(btn => (btn as HTMLButtonElement).disabled = true);
+    // pass playlist handling option from UI
+    const playlistSelect = document.getElementById('playlist-behavior') as HTMLSelectElement | null;
+    const playlistBehavior = playlistSelect ? playlistSelect.value : undefined;
     if (direction === 'to_newpipe') {
-      await convertToNewPipe(npFile, ltFile as File, mode, SQL);
+      await convertToNewPipe(npFile, ltFile as File, mode, SQL, playlistBehavior);
     } else {
-      await convertToLibreTube(npFile, ltFile, mode, SQL);
+      await convertToLibreTube(npFile, ltFile, mode, SQL, playlistBehavior);
     }
   } catch (e: any) {
     log(`FATAL ERROR: ${e.message || e.toString() || 'An unknown error occurred'}`, "err");
