@@ -3,7 +3,18 @@ import { log } from '../logger';
 import { getTimestamp, downloadFile } from '../utils';
 import JSZip from 'jszip';
 
-export async function convertToLibreTube(npFile: File | undefined, ltFile: File | undefined, mode: string, SQL: any, playlistBehavior?: string) {
+// Clamp numeric values to JS safe integer range so Kotlin Long deserialization
+// won't fail when LibreTube parses the exported JSON.
+const MAX_SAFE_NUM = Number.MAX_SAFE_INTEGER; // 9007199254740991
+function clampToSafeInt(value: unknown): number {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n) || isNaN(n)) return 0;
+  if (n > MAX_SAFE_NUM) return MAX_SAFE_NUM;
+  if (n < -MAX_SAFE_NUM) return -MAX_SAFE_NUM;
+  return Math.trunc(n);
+}
+
+export async function convertToLibreTube(npFile: File | undefined, ltFile: File | undefined, mode: string, SQL: any, playlistBehavior?: string, includeWatchHistoryParam?: boolean) {
   log("Starting conversion to LibreTube format...");
   
   let targetData: any = {
@@ -60,10 +71,9 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
     streamStateDebugInput += '\nCREATE statement:\n';
     if (create.length > 0 && create[0].values && create[0].values.length > 0) streamStateDebugInput += create[0].values[0][0] + '\n';
 
-    const dbgBlob = new Blob([streamStateDebugInput || 'No stream_state debug info collected.'], {type: 'text/plain'});
-    const timestamp = getTimestamp();
-    downloadFile(dbgBlob, 'stream_state_debug_input.txt', timestamp);
-    log('Downloaded separate stream_state debug file for input NewPipe DB.', 'schema');
+    // Log the full, nicely formatted stream_state debug information to the debug console
+    // (do not download a separate debug file when converting NewPipe -> LibreTube)
+    log('Stream state debug (input NewPipe DB):\n' + (streamStateDebugInput || 'No stream_state debug info collected.'), 'schema');
   } catch (e: any) {
     log('Failed to collect input stream_state debug: ' + (e.message || e.toString()), 'warn');
   }
@@ -114,7 +124,7 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
         thumbnailUrl: row[3],
         uploader: row[2],
         uploaderUrl: "",
-        videos: row[4]
+        videos: clampToSafeInt(row[4])
       });
     });
   }
@@ -127,6 +137,7 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
       const plId = plRow[0];
       const plName = plRow[1];
       const videos: any[] = [];
+      let itemIndex = 0; // numeric id for each playlist item to satisfy Kotlin Int deserializer
       const vidRes = db.exec(`
                     SELECT s.url, s.title, s.duration, s.uploader, s.upload_date, s.thumbnail_url
                     FROM playlist_stream_join j
@@ -146,14 +157,14 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
           }
 
           videos.push({
-            id: vidId,
-            playlistId: plId,
+            id: itemIndex++,
+            playlistId: clampToSafeInt(plId),
             videoId: vidId,
             title: v[1],
             uploadDate: v[4] ? new Date(v[4]*1000).toISOString().split('T')[0] : "1970-01-01",
             uploader: v[3],
             thumbnailUrl: v[5],
-            duration: v[2]
+            duration: clampToSafeInt(v[2])
           });
         });
       }
@@ -174,7 +185,7 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
 
         targetData.localPlaylists.push({
           playlist: {
-            id: plId,
+            id: clampToSafeInt(plId),
             name: plName,
             thumbnailUrl: videos.length > 0 ? videos[0].thumbnailUrl : ""
           },
@@ -185,9 +196,93 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
   }
   log(`Extracted ${targetData.localPlaylists.length} local playlists.`);
 
+  // Sanitize potentially oversized numeric values (e.g. positions) to avoid
+  // Kotlin Long overflow when LibreTube decodes the JSON. Clamp to
+  if (targetData && Array.isArray(targetData.watchPositions)) {
+    targetData.watchPositions = targetData.watchPositions.map((wp: any) => {
+      if (wp && wp.position !== undefined && wp.position !== null) {
+        return { ...wp, position: clampToSafeInt(wp.position) };
+      }
+      return wp;
+    });
+  }
+
+  // --- Import watch history & positions from NewPipe DB if requested ---
+  const includeWatchHistory = includeWatchHistoryParam === undefined ? true : Boolean(includeWatchHistoryParam);
+  // If merging and the user explicitly disabled includeWatchHistory, preserve targetData as-is
+  if (includeWatchHistory && npFile) {
+    try {
+      const histRes = db.exec(`SELECT s.url, sh.access_date, sh.repeat_count FROM stream_history sh JOIN streams s ON sh.stream_id = s.uid WHERE s.service_id = ${SERVICE_ID_YOUTUBE}`) || [];
+      const stateRes = db.exec(`SELECT s.url, ss.progress_time FROM stream_state ss JOIN streams s ON ss.stream_id = s.uid WHERE s.service_id = ${SERVICE_ID_YOUTUBE}`) || [];
+
+      // Ensure arrays exist
+      targetData.watchHistory = targetData.watchHistory || [];
+      targetData.watchPositions = targetData.watchPositions || [];
+
+      // Build maps for merging
+      const posMap = new Map<string, number>();
+      for (const wp of targetData.watchPositions) {
+        if (wp && wp.videoId) posMap.set(String(wp.videoId), clampToSafeInt(wp.position));
+      }
+
+      // Merge stream_state -> watchPositions (progress_time assumed milliseconds)
+      if (stateRes.length > 0) {
+        const rows = stateRes[0].values;
+        for (const r of rows) {
+            const url = r[0];
+            const progressRaw = r[1] || 0;
+            const progressNum = Number(progressRaw);
+          const idMatch = String(url || '').match(/v=([^&]+)/);
+          const vid = idMatch ? idMatch[1] : '';
+          if (!vid) continue;
+            const existing = posMap.get(vid) || 0;
+            // clamp progress to safe numeric range to avoid Numeric overflow
+            // when LibreTube (Kotlin) parses the produced JSON
+            const progressClamped = clampToSafeInt(progressNum);
+            // keep the maximum known progress
+            if (progressClamped > existing) posMap.set(vid, progressClamped);
+        }
+      }
+
+      // Rebuild targetData.watchPositions from map
+      targetData.watchPositions = Array.from(posMap.entries()).map(([videoId, position]) => ({ videoId, position }));
+
+      // Merge stream_history -> watchHistory
+      if (histRes.length > 0) {
+        const rows = histRes[0].values;
+        // Normalize existing history into an array we can merge into
+        const existingHistory: any[] = Array.isArray(targetData.watchHistory) ? targetData.watchHistory : [];
+
+        for (const r of rows) {
+          const url = r[0];
+          const access = clampToSafeInt(r[1]);
+          const repeat = clampToSafeInt(r[2] || 1);
+          const idMatch = String(url || '').match(/v=([^&]+)/);
+          const vid = idMatch ? idMatch[1] : '';
+          if (!vid) continue;
+
+          // try to find an existing entry within +/- 1000ms
+          const matchIdx = existingHistory.findIndex((e: any) => e.videoId === vid && Math.abs(Number(e.accessDate || e.timestamp || 0) - access) <= 1000);
+          if (matchIdx >= 0) {
+            // merge repeat counts and clamp the result
+            const prev = Number(existingHistory[matchIdx].repeatCount || existingHistory[matchIdx].watchCount || 0);
+            existingHistory[matchIdx].repeatCount = clampToSafeInt(prev + repeat);
+          } else {
+            existingHistory.push({ videoId: vid, accessDate: clampToSafeInt(access), repeatCount: repeat });
+          }
+        }
+
+        targetData.watchHistory = existingHistory;
+      }
+    } catch (e: any) {
+      log('Failed to import watch history from NewPipe DB: ' + (e.message || e.toString()), 'warn');
+    }
+  }
+
   const jsonStr = JSON.stringify(targetData, null, 2);
   const blob = new Blob([jsonStr], {type: "application/json"});
   const timestamp = getTimestamp();
   downloadFile(blob, "libretube_converted.json", timestamp);
   log("Done! File downloaded.", "info");
 }
+

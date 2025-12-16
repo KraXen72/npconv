@@ -63,10 +63,12 @@ export async function processBackup(direction: 'to_newpipe' | 'to_libretube') {
     // pass playlist handling option from UI
     const playlistSelect = document.getElementById('playlist-behavior') as HTMLSelectElement | null;
     const playlistBehavior = playlistSelect ? playlistSelect.value : undefined;
+    const includeWatchEl = document.getElementById('include-watch-history') as HTMLInputElement | null;
+    const includeWatchHistory = includeWatchEl ? includeWatchEl.checked : true;
     if (direction === 'to_newpipe') {
       await convertToNewPipe(npFile, ltFile as File, mode, SQL, playlistBehavior);
     } else {
-      await convertToLibreTube(npFile, ltFile, mode, SQL, playlistBehavior);
+      await convertToLibreTube(npFile, ltFile, mode, SQL, playlistBehavior, includeWatchHistory);
     }
   } catch (e: any) {
     log(`FATAL ERROR: ${e.message || e.toString() || 'An unknown error occurred'}`, "err");
