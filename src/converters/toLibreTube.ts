@@ -14,6 +14,48 @@ function clampToSafeInt(value: unknown): number {
   return Math.trunc(n);
 }
 
+// Robust upload date formatter. Handles seconds, milliseconds, YYYYMMDD, and ISO-like strings.
+function formatUploadDate(raw: unknown): string {
+  if (!raw && raw !== 0) return "1970-01-01";
+  const s = String(raw).trim();
+  // Already ISO-like date string
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.split('T')[0];
+  const n = Number(s);
+  if (!Number.isFinite(n)) return "1970-01-01";
+  const abs = Math.abs(n);
+  // YYYYMMDD (e.g. 20230424)
+  if (abs >= 10000000 && abs <= 99999999) {
+    const str = String(Math.trunc(n));
+    const y = str.slice(0, 4);
+    const m = str.slice(4, 6);
+    const d = str.slice(6, 8);
+    return `${y}-${m}-${d}`;
+  }
+  // Milliseconds timestamp (13+ digits)
+  if (abs > 1e12) return new Date(n).toISOString().split('T')[0];
+  // Seconds timestamp (10 digits)
+  if (abs >= 1e9) return new Date(n * 1000).toISOString().split('T')[0];
+  // Fallback: treat as milliseconds
+  return new Date(n).toISOString().split('T')[0];
+}
+
+// Parse various access date fields into milliseconds since epoch.
+function parseAccessDateToMs(raw: unknown): number {
+  if (raw === undefined || raw === null) return 0;
+  if (typeof raw === 'number') {
+    // If already milliseconds (large), keep; if seconds, convert to ms
+    return raw > 1e12 ? Math.floor(raw) : Math.floor(raw * 1000);
+  }
+  const s = String(raw).trim();
+  if (!s) return 0;
+  const parsed = Date.parse(s);
+  if (!isNaN(parsed)) return parsed;
+  // fallback numeric parse
+  const n = Number(s);
+  if (!Number.isFinite(n)) return 0;
+  return n > 1e12 ? Math.floor(n) : Math.floor(n * 1000);
+}
+
 export async function convertToLibreTube(npFile: File | undefined, ltFile: File | undefined, mode: string, SQL: any, playlistBehavior?: string, includeWatchHistoryParam?: boolean) {
   log("Starting conversion to LibreTube format...");
   
@@ -161,7 +203,7 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
             playlistId: clampToSafeInt(plId),
             videoId: vidId,
             title: v[1],
-            uploadDate: v[4] ? new Date(v[4]*1000).toISOString().split('T')[0] : "1970-01-01",
+            uploadDate: formatUploadDate(v[4]),
             uploader: v[3],
             thumbnailUrl: v[5],
             duration: clampToSafeInt(v[2])
@@ -251,8 +293,11 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
       // Merge stream_history -> watchHistory
       if (histRes.length > 0) {
         const rows = histRes[0].values;
-        // Normalize existing history into a map keyed by videoId so we can merge metadata
-        const existingHistory: any[] = Array.isArray(targetData.watchHistory) ? targetData.watchHistory : [];
+        // Normalize existing history into a list and map keyed by videoId so we can merge metadata
+        const existingHistory: any[] = Array.isArray(targetData.watchHistory) ? targetData.watchHistory.map((e: any) => ({
+          ...e,
+          accessDate: parseAccessDateToMs((e && (e.accessDate || e.accessedAt || e.lastWatched || e.timestamp || e.date || e.time)) || 0)
+        })) : [];
         const existingMap = new Map<string, any>();
         for (const e of existingHistory) if (e && e.videoId) existingMap.set(String(e.videoId), e);
 
@@ -264,6 +309,7 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
           const uploaderUrlRaw = r[4] || '';
           const thumbnail = r[5] || '';
           const uploadDateRaw = r[6];
+          const accessDateRaw = r[7];
           const idMatch = String(url || '').match(/v=([^&]+)/);
           const vid = idMatch ? idMatch[1] : '';
           if (!vid) continue;
@@ -281,10 +327,12 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
           }
 
           // format upload date (upload_date stored as seconds in DB)
-          const uploadDate = uploadDateRaw ? new Date(Number(uploadDateRaw) * 1000).toISOString().split('T')[0] : "1970-01-01";
+          const uploadDate = formatUploadDate(uploadDateRaw);
 
           // If we already have an entry for this video, skip (prefer existing). Otherwise add full metadata entry.
           if (existingMap.has(vid)) continue;
+
+          const accessMs = parseAccessDateToMs(accessDateRaw);
 
           existingHistory.push({
             videoId: vid,
@@ -294,9 +342,13 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
             uploaderUrl: uploaderId,
             uploaderAvatar: "",
             thumbnailUrl: thumbnail,
-            duration: duration
+            duration: duration,
+            accessDate: accessMs
           });
         }
+
+        // Sort watch history by access date descending (most recent first)
+        existingHistory.sort((a: any, b: any) => (b && b.accessDate ? b.accessDate : 0) - (a && a.accessDate ? a.accessDate : 0));
 
         targetData.watchHistory = existingHistory;
       }
