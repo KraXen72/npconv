@@ -1,8 +1,8 @@
-import { SERVICE_ID_YOUTUBE, DEFAULT_PREFERENCES } from '../constants';
-import { log } from '../logger';
-import { getTimestamp, downloadFile } from '../utils';
-import { createSchema, ensureStreamStateSchema } from '../sqlHelper';
 import JSZip from 'jszip';
+import { DEFAULT_PREFERENCES, SERVICE_ID_YOUTUBE } from '../constants';
+import { log } from '../logger';
+import { createSchema, ensureStreamStateSchema } from '../sqlHelper';
+import { downloadFile, extractVideoIdFromUrl, getTimestamp } from '../utils';
 
 export async function convertToNewPipe(npFile: File | undefined, ltFile: File, mode: string, SQL: any, playlistBehavior?: string) {
 	log("Starting conversion to NewPipe format...");
@@ -137,8 +137,6 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 		log("Processing Playlists...");
 		// Handle playlist behavior for merges. Values expected from UI:
 		// 'merge_np_precedence', 'merge_lt_precedence', 'only_newpipe', 'only_libretube'
-		let skipPlaylistImport = false;
-		const pb = playlistBehavior || null;
 		if (mode === 'merge') {
 			if (pb === 'only_libretube') {
 				db.run("DELETE FROM playlist_stream_join");
@@ -188,11 +186,12 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 
 					let joinIndex = 0;
 					for (const vid of lp.videos) {
-						const vidUrl = `https://www.youtube.com/watch?v=${vid.videoId}`;
-						if (!vid.videoId) {
+						const videoId = vid.videoId || extractVideoIdFromUrl(vid.url);
+						if (!videoId) {
 							log(`Skipped video in playlist ${plName} due to missing videoId.`, "warn");
 							continue;
 						}
+						const vidUrl = `https://www.youtube.com/watch?v=${videoId}`;
 						try {
 							const streamTitle = vid.title || "Unknown";
 							const uploaderName = vid.uploader || "Unknown";
@@ -330,7 +329,7 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 
 			for (const vid of historyArray) {
 				try {
-					const vidId = vid.videoId || vid.videoIdStr || vid.id || (vid.url && (vid.url.match(/v=([^&]+)/) || [])[1]);
+					const vidId = vid.videoId || vid.videoIdStr || vid.id || extractVideoIdFromUrl(vid.url) || '';
 					if (!vidId) continue;
 					// normalize URL for deduplication: canonical watch URL
 					const vidUrl = `https://www.youtube.com/watch?v=${vidId}`;
