@@ -1,0 +1,6 @@
+node_modules/
+.pnpm-store/
+*.log
+.DS_Store
+dist/node_modules/
+# keep dist/ in repo for GitHub Pages
