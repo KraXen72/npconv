@@ -7,8 +7,8 @@
 	<title>NewPipe <-> LibreTube Backup Converter</title>
 
 	<!-- Bundled JS will include dependencies (jszip, sql.js) -->
-  <script type="module" crossorigin src="/npconv/assets/index-sBjqwbD4.js"></script>
-  <link rel="stylesheet" crossorigin href="/npconv/assets/index-Bfyp5X5l.css">
+  <script type="module" crossorigin src="/npconv/assets/index-CtT_YsJV.js"></script>
+  <link rel="stylesheet" crossorigin href="/npconv/assets/index-B00pPNew.css">
 </head>
 
 <body>
@@ -16,14 +16,49 @@
 		<h1>Backup Converter</h1>
 
 		<div class="mode-selector">
-			<label class="radio-label">
-				<input type="radio" name="mode" value="merge" onchange="updateUI()">
-				Mode 1: Merge (Override Subs/Playlists)
-			</label>
-			<label class="radio-label">
-				<input type="radio" name="mode" value="convert" checked onchange="updateUI()">
-				Mode 2: Convert (Generate New)
-			</label>
+			<div class="mode-switch" role="tablist" aria-label="Mode selector">
+				<input type="radio" id="mode-merge" name="mode" value="merge" checked onchange="updateUI()">
+				<label for="mode-merge" class="mode-pill">Merge</label>
+				<input type="radio" id="mode-convert" name="mode" value="convert" onchange="updateUI()">
+				<label for="mode-convert" class="mode-pill">Convert</label>
+			</div>
+		</div>
+
+		<!-- Merge controls (visible when merge selected) -->
+		<div id="merge-controls" class="controls-block">
+			<div class="merge-options">
+				<label for="playlist-behavior">Playlists handling:</label>
+				<select id="playlist-behavior">
+					<option value="merge_np_precedence">Merge playlists (NewPipe precedence)</option>
+					<option value="merge_lt_precedence">Merge playlists (LibreTube precedence)</option>
+					<option value="only_newpipe">Only NewPipe playlists</option>
+					<option value="only_libretube">Only LibreTube playlists</option>
+				</select>
+			</div>
+
+			<div class="direction-toggle">
+				<span class="dir-label">NewPipe</span>
+				<label class="two-way">
+					<input type="checkbox" id="merge-direction" aria-label="Merge direction" />
+					<span class="slider" aria-hidden="true">
+						<!-- Arrow icon; will rotate via CSS to indicate direction -->
+						<svg class="toggle-arrow" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13a1 1 0 0 0-1-1H5.061a1 1 0 0 1-.75-1.811l6.836-6.835a1.207 1.207 0 0 1 1.707 0l6.835 6.835a1 1 0 0 1-.75 1.811H16a1 1 0 0 0-1 1v6a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1z"/></svg>
+					</span>
+				</label>
+				<span class="dir-label">LibreTube</span>
+			</div>
+
+			<div class="controls">
+				<button id="btn-merge">Merge</button>
+			</div>
+		</div>
+
+		<!-- Convert controls (visible when convert selected) -->
+		<div id="convert-controls" class="controls-block" style="display:none;">
+			<div class="controls">
+				<button id="btn-to-newpipe" onclick="processBackup('to_newpipe')">Target: NewPipe</button>
+				<button id="btn-to-libretube" onclick="processBackup('to_libretube')">Target: LibreTube</button>
+			</div>
 		</div>
 
 		<div class="file-area">
@@ -40,15 +75,6 @@
 				<input type="file" id="file-libretube" accept=".json">
 				<div class="file-name" aria-live="polite"></div>
 			</div>
-		</div>
-
-		<div class="controls">
-			<button id="btn-to-newpipe" onclick="processBackup('to_newpipe')">
-				Target: NewPipe
-			</button>
-			<button id="btn-to-libretube" onclick="processBackup('to_libretube')">
-				Target: LibreTube
-			</button>
 		</div>
 
 		<h3>Debug Log</h3>

@@ -27,8 +27,8 @@
 			<div class="merge-options">
 				<label for="playlist-behavior">Playlists handling:</label>
 				<select id="playlist-behavior">
-					<option value="merge_np_precedence">Merge playlists — NewPipe precedence</option>
-					<option value="merge_lt_precedence">Merge playlists — LibreTube precedence</option>
+					<option value="merge_np_precedence">Merge playlists (NewPipe precedence)</option>
+					<option value="merge_lt_precedence">Merge playlists (LibreTube precedence)</option>
 					<option value="only_newpipe">Only NewPipe playlists</option>
 					<option value="only_libretube">Only LibreTube playlists</option>
 				</select>
@@ -73,15 +73,6 @@
 				<input type="file" id="file-libretube" accept=".json">
 				<div class="file-name" aria-live="polite"></div>
 			</div>
-		</div>
-
-		<div class="controls">
-			<button id="btn-to-newpipe" onclick="processBackup('to_newpipe')">
-				Target: NewPipe
-			</button>
-			<button id="btn-to-libretube" onclick="processBackup('to_libretube')">
-				Target: LibreTube
-			</button>
 		</div>
 
 		<h3>Debug Log</h3>
