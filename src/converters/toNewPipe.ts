@@ -3,7 +3,7 @@ import type { Database, SqlJsStatic } from 'sql.js';
 import { DEFAULT_PREFERENCES, SERVICE_ID_YOUTUBE } from '../constants';
 import { log } from '../logger';
 import { createSchema, ensureStreamStateSchema } from '../sqlHelper';
-import type { LibreTubeBackup, LibreTubeHistoryItem, LibreTubeLocalPlaylist, LibreTubePlaylistBookmark, LibreTubeSubscription, LibreTubeWatchPosition } from '../types/libretube';
+import type { LibreTubeBackup, LibreTubeHistoryItem, LibreTubeLocalPlaylist, LibreTubePlaylistBookmark, LibreTubeWatchPosition } from '../types/libretube';
 import { downloadFile, extractVideoIdFromUrl, getTimestamp } from '../utils';
 
 export async function convertToNewPipe(npFile: File | undefined, ltFile: File, mode: string, SQL: SqlJsStatic, playlistBehavior?: string) {
