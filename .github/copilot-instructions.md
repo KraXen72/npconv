@@ -27,11 +27,8 @@ applyTo: "**"
 
 ### TypeScript config notes for this repo
 - This repo uses Vite and the current `tsconfig.json` (ESNext + `moduleResolution: bundler`). Keep `noEmit: true` and `isolatedModules`.
-- Keep `strict: true`. If a single feature requires a pragmatic loosening, prefer adding a narrow suppression or declaration rather than disabling strictness globally.
-
-## Third-party libs and wasm (sql.js example)
-- For libraries like `sql.js` that ship a wasm initializer, add a small ambient declaration file under `src/types/` to keep the rest of the code properly typed.
-- Prefer copying/serving wasm via Vite's asset handling or using `new URL('./file.wasm', import.meta.url)` so bundler knows about the file.
+- Keep `strict: true`, apart from `strictNullChecks`, which is false.
+- If a single feature requires a pragmatic loosening, prefer adding a narrow suppression or declaration rather than disabling strictness globally.
 
 ## Final notes
 - Make minimal, well-tested changes. Run `pnpm lint` and `pnpm build` (or the relevant dev scripts) after edits.

@@ -2,9 +2,10 @@ import { log } from './logger';
 // SQL helper: initialize sql.js and provide schema utilities
 // Use static imports so Vite can resolve and emit the wasm asset at build time.
 import initSqlJs from 'sql.js/dist/sql-wasm.js';
+import type { Database, SqlJsStatic } from 'sql.js';
 import wasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
 
-export async function initSQL(): Promise<any> {
+export async function initSQL(): Promise<SqlJsStatic> {
   try {
     return await initSqlJs({ locateFile: () => String(wasmUrl) });
   } catch {
@@ -18,7 +19,7 @@ export async function initSQL(): Promise<any> {
   }
 }
 
-export function createSchema(db: any) {
+export function createSchema(db: Database) {
   log("Generating NewPipe Schema (excluding sqlite_sequence)...", "schema");
   const stmts: string[] = [
     "PRAGMA foreign_keys = ON",
@@ -60,7 +61,7 @@ export function createSchema(db: any) {
   }
 }
 
-export function ensureStreamStateSchema(db: any) {
+export function ensureStreamStateSchema(db: Database) {
   try {
     const fkRes = db.exec("PRAGMA foreign_key_list('stream_state')");
     const infoRes = db.exec("PRAGMA table_info('stream_state')");

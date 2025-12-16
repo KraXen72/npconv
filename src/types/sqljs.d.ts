@@ -1,9 +1,6 @@
-declare module 'sql.js' {
-  const content: any;
-  export default content;
+declare module 'sql.js/dist/sql-wasm.js' {
+  import type { SqlJsStatic } from 'sql.js';
+  const initSqlJs: (config?: any) => Promise<SqlJsStatic>;
+  export default initSqlJs;
 }
 
-declare module 'sql.js/dist/sql-wasm.js' {
-  const content: any;
-  export default content;
-}

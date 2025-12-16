@@ -1,17 +1,19 @@
 import JSZip from 'jszip';
+import type { Database, SqlJsStatic } from 'sql.js';
 import { DEFAULT_PREFERENCES, SERVICE_ID_YOUTUBE } from '../constants';
 import { log } from '../logger';
 import { createSchema, ensureStreamStateSchema } from '../sqlHelper';
+import type { LibreTubeBackup, LibreTubeHistoryItem, LibreTubeLocalPlaylist, LibreTubePlaylistBookmark, LibreTubeSubscription, LibreTubeWatchPosition } from '../types/libretube';
 import { downloadFile, extractVideoIdFromUrl, getTimestamp } from '../utils';
 
-export async function convertToNewPipe(npFile: File | undefined, ltFile: File, mode: string, SQL: any, playlistBehavior?: string) {
+export async function convertToNewPipe(npFile: File | undefined, ltFile: File, mode: string, SQL: SqlJsStatic, playlistBehavior?: string) {
 	log("Starting conversion to NewPipe format...");
 
-	let db: any;
+	let db: Database;
 	let zip = new JSZip();
 	let streamStateDebug = '';
-	let existingPreferences: any = null;
-	let existingSettings: any = null;
+	let existingPreferences: string | null = null;
+	let existingSettings: Blob | null = null;
 	// playlist behavior passed from UI
 	const pb = playlistBehavior || null;
 	let skipPlaylistImport = false;
@@ -20,7 +22,7 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 	if (mode === 'merge' && npFile) {
 		log("Loading existing NewPipe backup...");
 		const npData = await npFile.arrayBuffer();
-		const sourceZip = await JSZip.loadAsync(npData as any);
+		const sourceZip = await JSZip.loadAsync(npData);
 
 		const newpipeDbFile = sourceZip.file("newpipe.db");
 		if (newpipeDbFile) {
@@ -86,7 +88,7 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 	// 2. Load LibreTube Data
 	log("Parsing LibreTube JSON...");
 	const ltText = await ltFile.text();
-	const ltData = JSON.parse(ltText);
+	const ltData = JSON.parse(ltText) as LibreTubeBackup;
 
 	db.run("BEGIN TRANSACTION");
 
@@ -100,7 +102,7 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 		let subCount = 0;
 		if (ltData.subscriptions) {
 			const stmt = db.prepare("INSERT INTO subscriptions (service_id, url, name, avatar_url, subscriber_count, description, notification_mode) VALUES (?, ?, ?, ?, ?, ?, ?)");
-			ltData.subscriptions.forEach((sub: any) => {
+			ltData.subscriptions.forEach(sub => {
 				try {
 					const url = sub.url || `https://www.youtube.com/channel/${sub.channelId}`;
 					const name = sub.name || "Unknown";
@@ -159,7 +161,8 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 			const playlistInsert = db.prepare("INSERT INTO playlists (name, is_thumbnail_permanent, thumbnail_stream_id, display_index) VALUES (?, ?, ?, ?)");
 			const joinInsert = db.prepare("INSERT INTO playlist_stream_join (playlist_id, stream_id, join_index) VALUES (?, ?, ?)");
 
-			for (const lp of ltData.localPlaylists) {
+			const localPlaylists: LibreTubeLocalPlaylist[] = ltData.localPlaylists;
+			for (const lp of localPlaylists) {
 				const plName = lp.playlist.name || "Untitled";
 				try {
 					const tempRes = db.exec(`SELECT uid FROM playlists WHERE name = '${plName.replace(/'/g, "''")}'`);
@@ -186,7 +189,7 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 
 					let joinIndex = 0;
 					for (const vid of lp.videos) {
-						const videoId = vid.videoId || extractVideoIdFromUrl(vid.url);
+						const videoId = vid.videoId || (vid.url ? extractVideoIdFromUrl(vid.url) : null);
 						if (!videoId) {
 							log(`Skipped video in playlist ${plName} due to missing videoId.`, "warn");
 							continue;
@@ -252,7 +255,8 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 		const stmt = db.prepare("INSERT INTO remote_playlists (service_id, name, url, thumbnail_url, uploader, display_index, stream_count) VALUES (?, ?, ?, ?, ?, ?, ?)");
 
 		if (ltData.playlistBookmarks && !skipPlaylistImport) {
-			for (const rb of ltData.playlistBookmarks) {
+			const bookmarks: LibreTubePlaylistBookmark[] = ltData.playlistBookmarks;
+			for (const rb of bookmarks) {
 				try {
 					const url = rb.url || (rb.playlistId ? `https://www.youtube.com/playlist?list=${rb.playlistId}` : null);
 					if (!url || (!url.includes("youtube.com") && !url.includes("youtu.be"))) {
@@ -309,12 +313,13 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 		let histCount = 0;
 		let addedCount = 0;
 		let duplicateCount = 0;
-		const historyArray = ltData.history || ltData.watchHistory || ltData.watch_history || ltData.watch_history_items || [];
+		const historyArray: LibreTubeHistoryItem[] = ltData.history || ltData.watchHistory || ltData.watch_history || ltData.watch_history_items || [];
 
 		// build a map of watch positions (videoId -> position)
 		const watchPosMap = new Map<string, number>();
 		if (ltData.watchPositions && Array.isArray(ltData.watchPositions)) {
-			for (const p of ltData.watchPositions) {
+			const watchPositions: LibreTubeWatchPosition[] = ltData.watchPositions;
+			for (const p of watchPositions) {
 				if (p && p.videoId) {
 					const pos = Number(p.position || 0);
 					watchPosMap.set(String(p.videoId), pos);
@@ -329,7 +334,7 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 
 			for (const vid of historyArray) {
 				try {
-					const vidId = vid.videoId || vid.videoIdStr || vid.id || extractVideoIdFromUrl(vid.url) || '';
+					const vidId = vid.videoId || vid.videoIdStr || vid.id || (vid.url ? extractVideoIdFromUrl(vid.url) : '') || '';
 					if (!vidId) continue;
 					// normalize URL for deduplication: canonical watch URL
 					const vidUrl = `https://www.youtube.com/watch?v=${vidId}`;

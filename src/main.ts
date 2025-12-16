@@ -3,8 +3,9 @@ import { initSQL } from './sqlHelper';
 import { log } from './logger';
 import { convertToNewPipe } from './converters/toNewPipe';
 import { convertToLibreTube } from './converters/toLibreTube';
+import type { SqlJsStatic } from 'sql.js';
 
-let SQL: any;
+let SQL: SqlJsStatic;
 
 // --- Initialization ---
 window.onload = async () => {

@@ -1,27 +1,30 @@
 import JSZip from 'jszip';
+import type { SqlJsStatic } from 'sql.js';
 import { SERVICE_ID_YOUTUBE } from '../constants';
 import { log } from '../logger';
+import type { LibreTubeBackup, LibreTubeHistoryItem, LibreTubeLocalPlaylist, LibreTubePlaylistBookmark, LibreTubeVideo } from '../types/libretube';
 import { clampToSafeInt, downloadFile, extractVideoIdFromUrl, formatUploadDate, getTimestamp, parseAccessDateToMs } from '../utils';
 
-export async function convertToLibreTube(npFile: File | undefined, ltFile: File | undefined, mode: string, SQL: any, playlistBehavior?: string, includeWatchHistoryParam?: boolean) {
+export async function convertToLibreTube(npFile: File | undefined, ltFile: File | undefined, mode: string, SQL: SqlJsStatic, playlistBehavior?: string, includeWatchHistoryParam?: boolean) {
 	log("Starting conversion to LibreTube format...");
 
-	let targetData: any = {
+	let targetData: LibreTubeBackup = {
 		watchHistory: [],
 		subscriptions: [],
 		playlistBookmarks: [],
 		localPlaylists: [],
-		preferences: []
+		preferences: [],
+		watchPositions: []
 	};
 	// playlist behavior handling
 	const pb = playlistBehavior || null;
 	let skipImportPlaylists = false;
 	// when merging and preserving LibreTube playlists, keep a snapshot to restore
-	let preservedPlaylists: any = undefined;
+	let preservedPlaylists: Partial<LibreTubeBackup> | undefined = undefined;
 	if (mode === 'merge' && ltFile) {
 		log("Reading target LibreTube file...");
 		const text = await ltFile.text();
-		const parsed = JSON.parse(text);
+		const parsed = JSON.parse(text) as LibreTubeBackup;
 		targetData = parsed;
 		// take a deep copy of playlist-related keys so we can fully restore them
 		// if the user chooses to keep only LibreTube playlists
@@ -33,9 +36,11 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
 		Object.keys(parsed).forEach(k => {
 			if (k !== 'playlistBookmarks' && k !== 'localPlaylists' && /playlist/i.test(k)) {
 				try {
-					preservedPlaylists.otherPlaylistKeys[k] = JSON.parse(JSON.stringify(parsed[k]));
+					if (!preservedPlaylists!.otherPlaylistKeys) preservedPlaylists!.otherPlaylistKeys = {};
+					preservedPlaylists!.otherPlaylistKeys[k] = JSON.parse(JSON.stringify((parsed as any)[k]));
 				} catch {
-					preservedPlaylists.otherPlaylistKeys[k] = parsed[k];
+					if (!preservedPlaylists!.otherPlaylistKeys) preservedPlaylists!.otherPlaylistKeys = {};
+					preservedPlaylists!.otherPlaylistKeys[k] = (parsed as any)[k];
 				}
 			}
 		});
@@ -91,8 +96,8 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
 	const subsRes = db.exec(`SELECT url, name, avatar_url FROM subscriptions WHERE service_id = ${SERVICE_ID_YOUTUBE}`);
 	if (subsRes.length > 0) {
 		const rows = subsRes[0].values;
-		rows.forEach((row: any) => {
-			const url = row[0];
+		rows.forEach((row: any[]) => {
+			const url = String(row[0]);
 			if (!url || (!url.includes("youtube.com") && !url.includes("youtu.be"))) {
 				log(`Dropped non-YouTube subscription URL: ${row[1]}`, "warn");
 				return;
@@ -106,8 +111,8 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
 			targetData.subscriptions.push({
 				channelId: channelId,
 				url: url,
-				name: row[1],
-				avatar: row[2],
+				name: String(row[1]),
+				avatar: row[2] ? String(row[2]) : undefined,
 				verified: false
 			});
 		});
@@ -118,8 +123,8 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
 	const remPlRes = db.exec(`SELECT name, url, uploader, thumbnail_url, stream_count FROM remote_playlists WHERE service_id = ${SERVICE_ID_YOUTUBE}`);
 	if (remPlRes.length > 0 && !skipImportPlaylists) {
 		const rows = remPlRes[0].values;
-		rows.forEach((row: any) => {
-			const url = row[1];
+		rows.forEach((row: any[]) => {
+			const url = String(row[1]);
 			if (!url || (!url.includes("youtube.com") && !url.includes("youtu.be"))) {
 				log(`Dropped non-YouTube remote playlist URL: ${row[0]}`, "warn");
 				return;
@@ -129,9 +134,9 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
 
 			targetData.playlistBookmarks.push({
 				playlistId: id,
-				playlistName: row[0],
-				thumbnailUrl: row[3],
-				uploader: row[2],
+				playlistName: String(row[0]),
+				thumbnailUrl: row[3] ? String(row[3]) : undefined,
+				uploader: row[2] ? String(row[2]) : undefined,
 				uploaderUrl: "",
 				videos: clampToSafeInt(row[4])
 			});
@@ -143,9 +148,9 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
 	const playlistsRes = db.exec("SELECT uid, name FROM playlists");
 	if (playlistsRes.length > 0 && !skipImportPlaylists) {
 		for (const plRow of playlistsRes[0].values) {
-			const plId = plRow[0];
-			const plName = plRow[1];
-			const videos: any[] = [];
+			const plId = Number(plRow[0]);
+			const plName = String(plRow[1]);
+			const videos: LibreTubeVideo[] = [];
 			let itemIndex = 0; // numeric id for each playlist item to satisfy Kotlin Int deserializer
 			const vidRes = db.exec(`
                     SELECT s.url, s.title, s.duration, s.uploader, s.upload_date, s.thumbnail_url
@@ -156,8 +161,8 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
                 `);
 
 			if (vidRes.length > 0) {
-				vidRes[0].values.forEach((v: any) => {
-					const vUrl = v[0];
+				vidRes[0].values.forEach((v: any[]) => {
+					const vUrl = String(v[0]);
 					const vidId = extractVideoIdFromUrl(vUrl);
 					if (!vidId) {
 						log(`Warning: Skipped stream in playlist "${plName}" due to unparseable URL: ${vUrl}`, "warn");
@@ -168,10 +173,10 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
 						id: itemIndex++,
 						playlistId: clampToSafeInt(plId),
 						videoId: vidId,
-						title: v[1],
+						title: String(v[1]),
 						uploadDate: formatUploadDate(v[4]),
-						uploader: v[3],
-						thumbnailUrl: v[5],
+						uploader: String(v[3]),
+						thumbnailUrl: v[5] ? String(v[5]) : undefined,
 						duration: clampToSafeInt(v[2])
 					});
 				});
@@ -180,7 +185,7 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
 			if (videos.length > 0 || plName) {
 				// handle precedence: if a playlist with the same name exists in targetData,
 				// either replace it (NewPipe precedence) or skip (LibreTube precedence)
-				const existingIndex = targetData.localPlaylists.findIndex((p: any) => p.playlist && p.playlist.name === plName);
+				const existingIndex = targetData.localPlaylists.findIndex(p => p.playlist && p.playlist.name === plName);
 				if (existingIndex >= 0) {
 					if (pb === 'merge_np_precedence') {
 						// NewPipe/source precedence: replace existing target playlist
@@ -209,10 +214,10 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
 	// accidental additions or modifications coming from the NewPipe DB.
 	if (mode === 'merge' && playlistBehavior === 'only_libretube' && preservedPlaylists) {
 		try {
-			targetData.playlistBookmarks = preservedPlaylists.playlistBookmarks;
-			targetData.localPlaylists = preservedPlaylists.localPlaylists;
+			targetData.playlistBookmarks = preservedPlaylists.playlistBookmarks as LibreTubePlaylistBookmark[];
+			targetData.localPlaylists = preservedPlaylists.localPlaylists as LibreTubeLocalPlaylist[];
 			Object.keys(preservedPlaylists.otherPlaylistKeys || {}).forEach(k => {
-				targetData[k] = preservedPlaylists.otherPlaylistKeys[k];
+				(targetData as any)[k] = preservedPlaylists.otherPlaylistKeys[k];
 			});
 			log('Restored original LibreTube playlist data (only_libretube).');
 		} catch (e: any) {
@@ -223,7 +228,7 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
 	// Sanitize potentially oversized numeric values (e.g. positions) to avoid
 	// Kotlin Long overflow when LibreTube decodes the JSON. Clamp to
 	if (targetData && Array.isArray(targetData.watchPositions)) {
-		targetData.watchPositions = targetData.watchPositions.map((wp: any) => {
+		targetData.watchPositions = targetData.watchPositions.map(wp => {
 			if (wp && wp.position !== undefined && wp.position !== null) {
 				return { ...wp, position: clampToSafeInt(wp.position) };
 			}
@@ -254,7 +259,7 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
 			if (stateRes.length > 0) {
 				const rows = stateRes[0].values;
 				for (const r of rows) {
-					const url = r[0];
+					const url = String(r[0]);
 					const progressRaw = r[1] || 0;
 					const progressNum = Number(progressRaw);
 					const vid = extractVideoIdFromUrl(url);
@@ -275,20 +280,20 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
 			if (histRes.length > 0) {
 				const rows = histRes[0].values;
 				// Normalize existing history into a list and map keyed by videoId so we can merge metadata
-				const existingHistory: any[] = Array.isArray(targetData.watchHistory) ? targetData.watchHistory.map((e: any) => ({
+				const existingHistory: LibreTubeHistoryItem[] = Array.isArray(targetData.watchHistory) ? targetData.watchHistory.map((e: LibreTubeHistoryItem) => ({
 					...e,
 					accessDate: parseAccessDateToMs((e && (e.accessDate || e.accessedAt || e.lastWatched || e.timestamp || e.date || e.time)) || 0)
 				})) : [];
-				const existingMap = new Map<string, any>();
+				const existingMap = new Map<string, LibreTubeHistoryItem>();
 				for (const e of existingHistory) if (e && e.videoId) existingMap.set(String(e.videoId), e);
 
 				for (const r of rows) {
-					const url = r[0];
-					const title = r[1] || '';
+					const url = String(r[0]);
+					const title = r[1] ? String(r[1]) : '';
 					const duration = clampToSafeInt(r[2]);
-					const uploader = r[3] || '';
-					const uploaderUrlRaw = r[4] || '';
-					const thumbnail = r[5] || '';
+					const uploader = r[3] ? String(r[3]) : '';
+					const uploaderUrlRaw = r[4] ? String(r[4]) : '';
+					const thumbnail = r[5] ? String(r[5]) : '';
 					const uploadDateRaw = r[6];
 					const accessDateRaw = r[7];
 					const vid = extractVideoIdFromUrl(url);
@@ -328,7 +333,7 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
 				}
 
 				// Sort watch history by access date descending (most recent first)
-				existingHistory.sort((a: any, b: any) => (b && b.accessDate ? b.accessDate : 0) - (a && a.accessDate ? a.accessDate : 0));
+				existingHistory.sort((a, b) => (Number(b && b.accessDate ? b.accessDate : 0)) - (Number(a && a.accessDate ? a.accessDate : 0)));
 
 				targetData.watchHistory = existingHistory;
 			}
