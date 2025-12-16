@@ -4,8 +4,10 @@ Convert between [newpipe](https://github.com/TeamNewPipe/NewPipe) and [libretube
 If you have used both apps in the past, for best results, use the `Merge` option.
 I have tested the tool both ways and it worked for me fine.  
 
-If you have duplicate playlists in LibreTube after importing a backup, go to `App Info`, clear all data, and re-import to fix.
-
+If you have duplicate playlists in LibreTube after importing a backup, go to `App Info`, clear all data, and re-import to fix.  
+  
+Conversion happens entirely in browser due to `sql.js`'s wasm implementation of sqlite.  
+  
 ## disclaimer
 > **WARNING!**  
 > **ALWAYS MAKE BACKUPS OF BOTH BEFORE ATTEMPTING ANY OPERATION**  
@@ -17,14 +19,14 @@ If you have duplicate playlists in LibreTube after importing a backup, go to `Ap
 
 If you encounter any issues, and you'd like them see fixed:
 1. best way is to open a pull request fixing the issue.
-2. alternatively, open an issue including **both** your backup files (you may react them as much as you want)
+2. Alternatively, open an issue including **both** your backup files (you may react them as much as you want)
   
-I cannot promise when they will be fixed for option 2), so option 1) is preffered.  
+I cannot promise when they will be fixed for option 2), so option 1) is preferred.  
 
 ## usage example
-e.g. If you used newpipe 6months ago, then used libretube since now, and are going back to newpipe:
+E.g. If you used newpipe 6months ago, then used libretube since now, and are going back to newpipe:
 1. select `Merge`
-2. load your 6-months-old newpipe backup
+2. Load your 6-months-old newpipe backup
 3. load your current, latest libretube export
 4. click `Merge into NewPipe`
 
