@@ -37,9 +37,11 @@ export function createSchema(db: any) {
             CREATE TABLE ` + "`remote_playlists`" + ` (` + "`uid`" + ` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, ` + "`service_id`" + ` INTEGER NOT NULL, ` + "`name`" + ` TEXT, ` + "`url`" + ` TEXT, ` + "`thumbnail_url`" + ` TEXT, ` + "`uploader`" + ` TEXT, ` + "`display_index`" + ` INTEGER NOT NULL, ` + "`stream_count`" + ` INTEGER);
             CREATE TABLE ` + "`feed`" + ` (` + "`stream_id`" + ` INTEGER NOT NULL, ` + "`subscription_id`" + ` INTEGER NOT NULL, PRIMARY KEY(` + "`stream_id`" + `, ` + "`subscription_id`" + `), FOREIGN KEY(` + "`stream_id`" + `) REFERENCES ` + "`streams`" + `(` + "`uid`" + `) ON UPDATE CASCADE ON DELETE CASCADE, FOREIGN KEY(` + "`subscription_id`" + `) REFERENCES ` + "`subscriptions`" + `(` + "`uid`" + `) ON UPDATE CASCADE ON DELETE CASCADE);
             CREATE INDEX ` + "`index_feed_subscription_id`" + ` ON ` + "`feed`" + ` (` + "`subscription_id`" + `);
-            CREATE TABLE ` + "`feed_group_subscription_join`" + ` (` + "`group_id`" + ` INTEGER, ` + "`subscription_id`" + ` INTEGER);
+            CREATE TABLE ` + "`feed_group_subscription_join`" + ` (` + "`group_id`" + ` INTEGER NOT NULL, ` + "`subscription_id`" + ` INTEGER NOT NULL, PRIMARY KEY(` + "`group_id`" + `, ` + "`subscription_id`" + `), FOREIGN KEY(` + "`group_id`" + `) REFERENCES ` + "`feed_group`" + `(` + "`uid`" + `) ON UPDATE CASCADE ON DELETE CASCADE, FOREIGN KEY(` + "`subscription_id`" + `) REFERENCES ` + "`subscriptions`" + `(` + "`uid`" + `) ON UPDATE CASCADE ON DELETE CASCADE);
+            CREATE INDEX ` + "`index_feed_group_subscription_join_subscription_id`" + ` ON ` + "`feed_group_subscription_join`" + ` (` + "`subscription_id`" + `);
             CREATE TABLE ` + "`room_master_table`" + ` (` + "`id`" + ` INTEGER, ` + "`identity_hash`" + ` TEXT);
-            CREATE TABLE ` + "`feed_group`" + ` (` + "`uid`" + ` INTEGER, ` + "`name`" + ` TEXT, ` + "`icon_id`" + ` INTEGER, ` + "`sort_order`" + ` INTEGER);
+            CREATE TABLE ` + "`feed_group`" + ` (` + "`uid`" + ` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, ` + "`name`" + ` TEXT NOT NULL, ` + "`icon_id`" + ` INTEGER NOT NULL, ` + "`sort_order`" + ` INTEGER NOT NULL);
+            CREATE INDEX ` + "`index_feed_group_sort_order`" + ` ON ` + "`feed_group`" + ` (` + "`sort_order`" + `);
             INSERT INTO android_metadata VALUES ('en_US');
         `;
   db.run(schema);
