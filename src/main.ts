@@ -23,21 +23,24 @@ window.onload = async () => {
 export function updateUI() {
   const modeEl = document.querySelector('input[name="mode"]:checked') as HTMLInputElement | null;
   const mode = modeEl ? modeEl.value : 'convert';
-  const btnNP = document.getElementById('btn-to-newpipe') as HTMLButtonElement | null;
-  const btnLT = document.getElementById('btn-to-libretube') as HTMLButtonElement | null;
   const fileNP = document.getElementById('file-newpipe') as HTMLInputElement | null;
   const fileLT = document.getElementById('file-libretube') as HTMLInputElement | null;
+  const mergeBlock = document.getElementById('merge-controls') as HTMLDivElement | null;
+  const convertBlock = document.getElementById('convert-controls') as HTMLDivElement | null;
 
-  if (!btnNP || !btnLT || !fileNP || !fileLT) return;
+  if (!fileNP || !fileLT || !mergeBlock || !convertBlock) return;
 
   if (mode === 'merge') {
-    btnNP.textContent = "Merge into NewPipe";
-    btnLT.textContent = "Merge into LibreTube";
+    mergeBlock.style.display = '';
+    convertBlock.style.display = 'none';
     fileNP.disabled = false;
     fileLT.disabled = false;
   } else {
-    btnNP.textContent = "Convert LibreTube -> NewPipe";
-    btnLT.textContent = "Convert NewPipe -> LibreTube";
+    mergeBlock.style.display = 'none';
+    convertBlock.style.display = '';
+    // in convert mode, allow picking either file depending on action
+    fileNP.disabled = false;
+    fileLT.disabled = false;
   }
 }
 
@@ -75,6 +78,37 @@ export async function processBackup(direction: 'to_newpipe' | 'to_libretube') {
 // Expose to global for HTML bindings
 (window as any).processBackup = processBackup;
 (window as any).updateUI = updateUI;
+
+// Wire merge button and direction behavior
+window.addEventListener('DOMContentLoaded', () => {
+  const mergeBtn = document.getElementById('btn-merge') as HTMLButtonElement | null;
+  const dirToggle = document.getElementById('merge-direction') as HTMLInputElement | null;
+  const playlistSelect = document.getElementById('playlist-behavior') as HTMLSelectElement | null;
+
+    if (mergeBtn && dirToggle && playlistSelect) {
+    // default select based on toggle initial state
+    // Note: when merging LibreTube -> NewPipe (target NewPipe), LibreTube playlists should have precedence by default.
+    // Our toggle: unchecked => merge into NewPipe (LibreTube -> NewPipe), checked => merge into LibreTube (NewPipe -> LibreTube).
+    playlistSelect.value = dirToggle.checked ? 'merge_np_precedence' : 'merge_lt_precedence';
+
+    dirToggle.addEventListener('change', () => {
+      // when direction changes, set a reasonable default for playlist handling
+      if (dirToggle.checked) {
+        // checked: merging into LibreTube (NewPipe -> LibreTube) -> NewPipe precedence
+        playlistSelect.value = 'merge_np_precedence';
+      } else {
+        // unchecked: merging into NewPipe (LibreTube -> NewPipe) -> LibreTube precedence
+        playlistSelect.value = 'merge_lt_precedence';
+      }
+    });
+
+    mergeBtn.addEventListener('click', async () => {
+      // determine target based on direction toggle: unchecked => merge into NewPipe, checked => merge into LibreTube
+      const target = dirToggle.checked ? 'to_libretube' : 'to_newpipe';
+      await processBackup(target as any);
+    });
+  }
+});
 
 // Setup clickable + drag-and-drop behavior for .drop-zone elements
 function setupDropZones() {

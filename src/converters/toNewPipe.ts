@@ -182,11 +182,19 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
                 uploadDateTs,
                 thumbnailUrl
               ]);
-
               const streamIdRes = db.exec(`SELECT uid FROM streams WHERE service_id=${SERVICE_ID_YOUTUBE} AND url='${vidUrl.replace(/'/g, "''")}'`);
               if (streamIdRes.length > 0 && streamIdRes[0].values.length > 0) {
                 const streamId = streamIdRes[0].values[0][0];
+                const currentIndex = joinIndex;
                 joinInsert.run([plId, streamId, joinIndex++]);
+                // if this is the first video in the playlist, set it as the thumbnail_stream_id
+                if (currentIndex === 0) {
+                  try {
+                    db.run(`UPDATE playlists SET thumbnail_stream_id = ${streamId} WHERE uid = ${plId}`);
+                  } catch (e: any) {
+                    log(`WARN: failed to set playlist thumbnail for ${plName}: ${e.message || e.toString()}`, 'warn');
+                  }
+                }
               } else {
                 log(`Warning: Could not find/insert stream for video ${streamTitle}`, "warn");
               }
