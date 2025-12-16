@@ -255,6 +255,8 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
   try {
     log("Processing Watch History...");
     let histCount = 0;
+    let addedCount = 0;
+    let duplicateCount = 0;
     const historyArray = ltData.history || ltData.watchHistory || ltData.watch_history || ltData.watch_history_items || [];
 
     if (historyArray && historyArray.length > 0) {
@@ -264,9 +266,9 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 
       for (const vid of historyArray) {
         try {
-          // Video id may be in several places
           const vidId = vid.videoId || vid.videoIdStr || vid.id || (vid.url && (vid.url.match(/v=([^&]+)/) || [])[1]);
           if (!vidId) continue;
+          // normalize URL for deduplication: canonical watch URL
           const vidUrl = `https://www.youtube.com/watch?v=${vidId}`;
 
           const streamTitle = vid.title || vid.name || "Unknown";
@@ -279,20 +281,19 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
           const progressSeconds = vid.currentTime || vid.position || vid.progress || 0;
           const progressTime = Math.floor(Number(progressSeconds || 0) * 1000);
 
-          // access date: try multiple fields, accept ISO or epoch (ms or s)
+          // access date: accept ISO or epoch (ms or s); produce milliseconds
           let accessRaw = vid.accessDate || vid.accessedAt || vid.lastWatched || vid.timestamp || vid.date || vid.time;
-          let accessDateSec: number;
+          let accessDateMs: number;
           if (!accessRaw) {
-            accessDateSec = Math.floor(Date.now() / 1000);
+            accessDateMs = Date.now();
           } else if (typeof accessRaw === 'number') {
-            // if too large, assume ms
-            accessDateSec = accessRaw > 1e12 ? Math.floor(accessRaw / 1000) : Math.floor(accessRaw);
+            accessDateMs = accessRaw > 1e12 ? Math.floor(accessRaw) : Math.floor(accessRaw * 1000);
           } else {
             const parsed = Date.parse(String(accessRaw));
-            accessDateSec = isNaN(parsed) ? Math.floor(Date.now() / 1000) : Math.floor(parsed / 1000);
+            accessDateMs = isNaN(parsed) ? Date.now() : parsed;
           }
 
-          const repeatCount = vid.repeatCount || vid.watchCount || vid.playCount || vid.repeat_count || 1;
+          const repeatCount = Number(vid.repeatCount || vid.watchCount || vid.playCount || vid.repeat_count || 1);
 
           // insert stream (if not present)
           streamInsert.run([
@@ -317,20 +318,26 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
               log(`WARN: failed to write stream_state for ${vidId}: ${e.message || e.toString()}`, "warn");
             }
 
-            // stream_history: primary key is (stream_id, access_date). Merge semantics: sum repeat_count for same access_date when merging.
+            // stream_history: dedupe by stream_id and access_date within +/-1s (1000ms)
             try {
               if (mode === 'merge') {
-                const existing = db.exec(`SELECT repeat_count FROM stream_history WHERE stream_id = ${streamId} AND access_date = ${accessDateSec}`);
+                const low = accessDateMs - 1000;
+                const high = accessDateMs + 1000;
+                const existing = db.exec(`SELECT access_date, repeat_count FROM stream_history WHERE stream_id = ${streamId} AND access_date BETWEEN ${low} AND ${high}`);
                 if (existing && existing.length > 0 && existing[0].values.length > 0) {
-                  const old = Number(existing[0].values[0][0]) || 0;
-                  const combined = old + Number(repeatCount || 1);
-                  db.run(`UPDATE stream_history SET repeat_count = ${combined} WHERE stream_id = ${streamId} AND access_date = ${accessDateSec}`);
+                  // merge into first matched entry
+                  const existingDate = Number(existing[0].values[0][0]);
+                  const existingRepeat = Number(existing[0].values[0][1]) || 0;
+                  const combined = existingRepeat + repeatCount;
+                  db.run(`UPDATE stream_history SET repeat_count = ${combined} WHERE stream_id = ${streamId} AND access_date = ${existingDate}`);
+                  duplicateCount++;
                 } else {
-                  historyInsert.run([streamId, accessDateSec, Number(repeatCount || 1)]);
+                  historyInsert.run([streamId, accessDateMs, repeatCount]);
+                  addedCount++;
                 }
               } else {
-                // generate/new DB
-                historyInsert.run([streamId, accessDateSec, Number(repeatCount || 1)]);
+                historyInsert.run([streamId, accessDateMs, repeatCount]);
+                addedCount++;
               }
             } catch (e: any) {
               log(`WARN: failed to write stream_history for ${vidId}: ${e.message || e.toString()}`, "warn");
@@ -348,7 +355,7 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
       historyInsert.free();
     }
 
-    log(`Processed ${histCount} history items.`);
+    log(`Processed ${histCount} history items (added: ${addedCount}, duplicates merged: ${duplicateCount}).`);
   } catch (e: any) {
     log(`Error processing history: ${e.message}`, "err");
   }

@@ -1,5 +1,5 @@
 ## npconv
-Convert between newpipe and libretube backups. [Go to npconv](https://kraxen72.github.io/npconv/)  
+Convert between [newpipe](https://github.com/TeamNewPipe/NewPipe) and [libretube](https://github.com/libre-tube/LibreTube) backups. [Go to npconv](https://kraxen72.github.io/npconv/)  
 
 I have mostly tested it from libretube -> newpipe, but other way around should work too.  
 If you have used both apps in the past, for best results, use the `Merge` option.
