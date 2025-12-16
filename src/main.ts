@@ -1,3 +1,4 @@
+import '../style.css';
 import { initSQL } from './sqlHelper';
 import { log } from './logger';
 import { convertToNewPipe } from './converters/toNewPipe';

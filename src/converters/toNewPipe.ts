@@ -19,8 +19,9 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
     const npData = await npFile.arrayBuffer();
     const sourceZip = await JSZip.loadAsync(npData as any);
 
-    if (sourceZip.file("newpipe.db")) {
-      const dbData = await sourceZip.file("newpipe.db").async("uint8array");
+    const newpipeDbFile = sourceZip.file("newpipe.db");
+    if (newpipeDbFile) {
+      const dbData = await newpipeDbFile.async("uint8array");
       db = new SQL.Database(dbData);
       log("Database loaded. Running integrity check...");
       const tablesRes = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';");
@@ -51,11 +52,13 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
       throw new Error("Invalid NewPipe backup: missing newpipe.db");
     }
 
-    if (sourceZip.file("preferences.json")) {
-      existingPreferences = await sourceZip.file("preferences.json").async("string");
+    const prefFile = sourceZip.file("preferences.json");
+    if (prefFile) {
+      existingPreferences = await prefFile.async("string");
     }
-    if (sourceZip.file("newpipe.settings")) {
-      existingSettings = await sourceZip.file("newpipe.settings").async("blob");
+    const settingsFile = sourceZip.file("newpipe.settings");
+    if (settingsFile) {
+      existingSettings = await settingsFile.async("blob");
     }
 
   } else {

@@ -2,11 +2,19 @@ import { log } from './logger';
 // SQL helper: initialize sql.js and provide schema utilities
 export async function initSQL(): Promise<any> {
   // Dynamically import the ESM initializer from sql.js which works in browser bundles
+  // Use Vite's `?url` import to let the bundler emit and return a URL for the wasm file
   const initSqlJs = (await import('sql.js/dist/sql-wasm.js')).default || (await import('sql.js')).default;
-  return await initSqlJs({
-    // Expect `sql-wasm.wasm` to be served from the root (Vite `public/` copies it)
-    locateFile: (_file: string) => `/sql-wasm.wasm`
-  });
+
+  // Try to resolve the package-provided wasm via Vite's url import. This lets the bundler
+  // copy/emit the wasm and return a runtime URL that `initSqlJs` can fetch.
+  try {
+    const wasmUrlModule = await import('sql.js/dist/sql-wasm.wasm?url');
+    const wasmUrl = (wasmUrlModule && (wasmUrlModule as any).default) || (wasmUrlModule as any);
+    return await initSqlJs({ locateFile: () => String(wasmUrl) });
+  } catch {
+    // Fallback: let sql.js try to locate the wasm relative to its loader.
+    return await initSqlJs();
+  }
 }
 
 export function createSchema(db: any) {
