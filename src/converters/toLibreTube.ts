@@ -212,7 +212,8 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
   // If merging and the user explicitly disabled includeWatchHistory, preserve targetData as-is
   if (includeWatchHistory && npFile) {
     try {
-      const histRes = db.exec(`SELECT s.url, sh.access_date, sh.repeat_count FROM stream_history sh JOIN streams s ON sh.stream_id = s.uid WHERE s.service_id = ${SERVICE_ID_YOUTUBE}`) || [];
+      // Select stream metadata so we can build full LibreTube-style watchHistory entries
+      const histRes = db.exec(`SELECT s.url, s.title, s.duration, s.uploader, s.uploader_url, s.thumbnail_url, s.upload_date, sh.access_date, sh.repeat_count FROM stream_history sh JOIN streams s ON sh.stream_id = s.uid WHERE s.service_id = ${SERVICE_ID_YOUTUBE}`) || [];
       const stateRes = db.exec(`SELECT s.url, ss.progress_time FROM stream_state ss JOIN streams s ON ss.stream_id = s.uid WHERE s.service_id = ${SERVICE_ID_YOUTUBE}`) || [];
 
       // Ensure arrays exist
@@ -250,26 +251,51 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
       // Merge stream_history -> watchHistory
       if (histRes.length > 0) {
         const rows = histRes[0].values;
-        // Normalize existing history into an array we can merge into
+        // Normalize existing history into a map keyed by videoId so we can merge metadata
         const existingHistory: any[] = Array.isArray(targetData.watchHistory) ? targetData.watchHistory : [];
+        const existingMap = new Map<string, any>();
+        for (const e of existingHistory) if (e && e.videoId) existingMap.set(String(e.videoId), e);
 
         for (const r of rows) {
           const url = r[0];
-          const access = clampToSafeInt(r[1]);
-          const repeat = clampToSafeInt(r[2] || 1);
+          const title = r[1] || '';
+          const duration = clampToSafeInt(r[2]);
+          const uploader = r[3] || '';
+          const uploaderUrlRaw = r[4] || '';
+          const thumbnail = r[5] || '';
+          const uploadDateRaw = r[6];
           const idMatch = String(url || '').match(/v=([^&]+)/);
           const vid = idMatch ? idMatch[1] : '';
           if (!vid) continue;
 
-          // try to find an existing entry within +/- 1000ms
-          const matchIdx = existingHistory.findIndex((e: any) => e.videoId === vid && Math.abs(Number(e.accessDate || e.timestamp || 0) - access) <= 1000);
-          if (matchIdx >= 0) {
-            // merge repeat counts and clamp the result
-            const prev = Number(existingHistory[matchIdx].repeatCount || existingHistory[matchIdx].watchCount || 0);
-            existingHistory[matchIdx].repeatCount = clampToSafeInt(prev + repeat);
-          } else {
-            existingHistory.push({ videoId: vid, accessDate: clampToSafeInt(access), repeatCount: repeat });
+          // derive uploaderId from uploader_url when possible (channel/user id)
+          let uploaderId = '';
+          try {
+            const mChan = String(uploaderUrlRaw).match(/channel\/([\w-]+)/);
+            const mUser = String(uploaderUrlRaw).match(/user\/([\w-]+)/);
+            if (mChan) uploaderId = mChan[1];
+            else if (mUser) uploaderId = mUser[1];
+            else if (/^[UC][A-Za-z0-9_-]{20,}$/.test(uploaderUrlRaw)) uploaderId = uploaderUrlRaw; // maybe already an id
+          } catch {
+            uploaderId = '';
           }
+
+          // format upload date (upload_date stored as seconds in DB)
+          const uploadDate = uploadDateRaw ? new Date(Number(uploadDateRaw) * 1000).toISOString().split('T')[0] : "1970-01-01";
+
+          // If we already have an entry for this video, skip (prefer existing). Otherwise add full metadata entry.
+          if (existingMap.has(vid)) continue;
+
+          existingHistory.push({
+            videoId: vid,
+            title: title,
+            uploadDate: uploadDate,
+            uploader: uploader,
+            uploaderUrl: uploaderId,
+            uploaderAvatar: "",
+            thumbnailUrl: thumbnail,
+            duration: duration
+          });
         }
 
         targetData.watchHistory = existingHistory;
