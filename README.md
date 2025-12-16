@@ -15,6 +15,12 @@ If you have used both apps in the past, for best results, use the `Merge` option
 I am also disclosing that this tool started out vibe-coded. I have gradually refined it with the use of AI and on my own as well, but the code is still likely sub-optimal.  
 I have used Gemini Pro 3 for the initial implementation, and further changes were mostly carried out using gpt5-mini or Gemini Pro 3.  
 
+If you encounter any issues, and you'd like them see fixed:
+1. best way is to open a pull request fixing the issue.
+2. alternatively, open an issue including **both** your backup files (you may react them as much as you want)
+  
+I cannot promise when they will be fixed for option 2), so option 1) is preffered.  
+
 ## usage example
 e.g. If you used newpipe 6months ago, then used libretube since now, and are going back to newpipe:
 1. select `Merge`

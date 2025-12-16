@@ -259,6 +259,17 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
     let duplicateCount = 0;
     const historyArray = ltData.history || ltData.watchHistory || ltData.watch_history || ltData.watch_history_items || [];
 
+    // build a map of watch positions (videoId -> position)
+    const watchPosMap = new Map<string, number>();
+    if (ltData.watchPositions && Array.isArray(ltData.watchPositions)) {
+      for (const p of ltData.watchPositions) {
+        if (p && p.videoId) {
+          const pos = Number(p.position || 0);
+          watchPosMap.set(String(p.videoId), pos);
+        }
+      }
+    }
+
     if (historyArray && historyArray.length > 0) {
       const streamInsert = db.prepare("INSERT OR IGNORE INTO streams (service_id, url, title, stream_type, duration, uploader, upload_date, thumbnail_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
       const stateInsert = db.prepare("INSERT OR REPLACE INTO stream_state (progress_time, stream_id) VALUES (?, ?)");
@@ -277,9 +288,22 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
           const uploadDateTs = vid.uploadDate ? (isNaN(Number(vid.uploadDate)) ? Math.floor(new Date(vid.uploadDate).getTime() / 1000) : Math.floor(Number(vid.uploadDate))) : null;
           const thumbnailUrl = vid.thumbnailUrl || vid.thumbnail || null;
 
-          // progress: LibreTube tends to store seconds; NewPipe expects milliseconds.
-          const progressSeconds = vid.currentTime || vid.position || vid.progress || 0;
-          const progressTime = Math.floor(Number(progressSeconds || 0) * 1000);
+          // progress: prefer LibreTube watchPositions map if available (positions are ms),
+          // fallback to vid.currentTime/position (assumed seconds) and convert to ms.
+          let progressTime = 0;
+          const mappedPos = watchPosMap.get(vidId);
+          const SENTINEL_STR = '9223372036854775807';
+          if (mappedPos !== undefined && mappedPos !== null) {
+            // ignore sentinel huge values used to indicate unknown/very large position
+            if (String(mappedPos) === SENTINEL_STR) {
+              progressTime = 0;
+            } else {
+              progressTime = Math.floor(Number(mappedPos) || 0);
+            }
+          } else {
+            const progressSeconds = vid.currentTime || vid.position || vid.progress || 0;
+            progressTime = Math.floor(Number(progressSeconds || 0) * 1000);
+          }
 
           // access date: accept ISO or epoch (ms or s); produce milliseconds
           let accessRaw = vid.accessDate || vid.accessedAt || vid.lastWatched || vid.timestamp || vid.date || vid.time;
