@@ -2,7 +2,9 @@
 Convert between [newpipe](https://github.com/TeamNewPipe/NewPipe) and [libretube](https://github.com/libre-tube/LibreTube) backups. [Go to npconv](https://kraxen72.github.io/npconv/)  
 
 If you have used both apps in the past, for best results, use the `Merge` option.
-I have tested the tool both ways and it worked for me fine.
+I have tested the tool both ways and it worked for me fine.  
+
+If you have duplicate playlists in LibreTube after importing a backup, go to `App Info`, clear all data, and re-import to fix.
 
 ## disclaimer
 > **WARNING!**  
