@@ -84,7 +84,9 @@ function addMapping() {
 				<input type="number" class="min-duration-input" value="5" min="0" step="1" title="Minimum duration in minutes">
 				min
 			</label>
-			<button class="remove-mapping" aria-label="Remove mapping">×</button>
+			<button class="remove-button remove-mapping" aria-label="Remove mapping">
+				<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><!-- Icon from Lucide by Lucide Contributors - https://github.com/lucide-icons/lucide/blob/main/LICENSE --><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12"/></svg>
+			</button>
 		</div>
 		<div class="activity-grid-container" style="display: none;">
 			<activity-grid class="habit-preview-grid" dark-mode></activity-grid>
@@ -173,7 +175,6 @@ function populateUHabitsSelect(select: HTMLSelectElement) {
 		const divider = document.createElement('option');
 		divider.disabled = true;
 		divider.textContent = '─── Archived ───';
-		divider.style.fontStyle = 'italic';
 		divider.style.color = '#888';
 		select.appendChild(divider);
 

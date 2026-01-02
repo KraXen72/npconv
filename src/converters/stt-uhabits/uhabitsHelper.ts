@@ -15,13 +15,13 @@ export async function parseUHabitsBackup(file: File, SQL: SqlJsStatic): Promise<
 	const repetitions: UHabitsRepetition[] = [];
 	
 	try {
-		// Read Habits table - only boolean habits (type=0) that aren't archived
+		// Read Habits table - only boolean habits (type=0), including archived
 		const habitsQuery = db.exec(`
 			SELECT id, archived, color, description, freq_den, freq_num, highlight, 
 			       name, position, reminder_hour, reminder_min, reminder_days, 
 			       type, target_type, target_value, unit, question, uuid
 			FROM Habits 
-			WHERE type = 0 AND archived = 0
+			WHERE type = 0
 		`);
 		
 		if (habitsQuery.length > 0) {

@@ -108,37 +108,38 @@ h3 {
 	box-shadow: 0 8px 22px rgba(11, 8, 28, 0.24);
 }
 
-.drop-zone .clear-file {
+.clear-file {
 	position: absolute;
 	top: .5rem;
 	right: .5rem;
+	z-index: 10;
+}
+
+.remove-button {
+	cursor: pointer;
 	min-width: unset;
 	min-height: unset;
 	padding: 0;
-
 	width: 2rem;
 	height: 2rem;
 	background-color: var(--button-bg);
 	border: 1px solid var(--border);
 	border-radius: 4px;
 	color: var(--text);
-	cursor: pointer;
 	transition: background-color 0.14s, border-color 0.14s, color 0.14s;
-	z-index: 10;
-
 	display: flex;
 	justify-content: center;
 	align-items: center;
 }
 
-.drop-zone .clear-file:hover {
+.remove-button:hover {
 	background: var(--button-bg-hover);
 	border-color: var(--error);
 	color: var(--error);
-	transform: translate(0, 0);
+	transform: translate(0, 0) !important;
 }
 
-.drop-zone .clear-file:active {
+.remove-button:active {
 	background: var(--button-bg-active);
 }
 
@@ -512,28 +513,6 @@ button:active:not(:disabled) {
 	outline: none;
 	border-color: var(--primary);
 	box-shadow: 0 0 0 2px rgba(187, 134, 252, 0.1);
-}
-
-.remove-mapping {
-	padding: 8px 14px;
-	background: var(--error);
-	color: white;
-	border: none;
-	border-radius: 6px;
-	cursor: pointer;
-	font-size: 18px;
-	line-height: 1;
-	transition: opacity 0.2s, transform 0.12s ease;
-	flex-shrink: 0;
-}
-
-.remove-mapping:hover {
-	opacity: 0.9;
-	transform: translateY(-1px);
-}
-
-.remove-mapping:active {
-	transform: translateY(0);
 }
 
 #add-mapping {
