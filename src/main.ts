@@ -57,17 +57,34 @@ export function updateUI() {
     if (attr) elem.innerHTML = attr;
   });
 
-  // Update file input accept attributes
+  // Clear file inputs only when switching between different converter types (newpipe/libretube vs stt)
+  // Don't clear when switching between merge and convert (both are newpipe modes)
+  const prevModeKey = (window as any).prevMode;
+  const prevWasNewpipe = prevModeKey === 'merge' || prevModeKey === 'convert';
+  const currentIsNewpipe = mode === 'merge' || mode === 'convert';
+  const shouldClearFiles = prevModeKey && (prevWasNewpipe !== currentIsNewpipe);
+  
   const fileLeft = document.getElementById('file-left') as HTMLInputElement | null;
   const fileRight = document.getElementById('file-right') as HTMLInputElement | null;
   if (fileLeft) {
     const accept = fileLeft.getAttribute(`data-${mode}`);
     if (accept) fileLeft.accept = accept;
+    if (shouldClearFiles) {
+      fileLeft.value = '';
+      fileLeft.dispatchEvent(new Event('change', { bubbles: true }));
+    }
   }
   if (fileRight) {
     const accept = fileRight.getAttribute(`data-${mode}`);
     if (accept) fileRight.accept = accept;
+    if (shouldClearFiles) {
+      fileRight.value = '';
+      fileRight.dispatchEvent(new Event('change', { bubbles: true }));
+    }
   }
+  
+  // Remember current mode for next time
+  (window as any).prevMode = mode;
 }
 
 export async function processBackup(direction: 'to_newpipe' | 'to_libretube') {

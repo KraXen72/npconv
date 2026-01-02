@@ -76,7 +76,7 @@ function addMapping() {
 			<select class="stt-activity-select" data-mapping-id="${mappingId}">
 				<option value="">Select STT activity...</option>
 			</select>
-			<span class="mapping-arrow">→</span>
+			<span class="mapping-arrow">▶</span>
 			<select class="uhabits-habit-select" data-mapping-id="${mappingId}">
 				<option value="">Select uHabits habit...</option>
 			</select>
@@ -95,14 +95,13 @@ function addMapping() {
 				<span class="grid-year-display"></span>
 				<button class="year-next" data-mapping-id="${mappingId}" title="Next year">▶</button>
 			</div>
-			<activity-grid class="habit-preview-grid" dark-mode></activity-grid>
+			<activity-grid start-week-on-monday class="habit-preview-grid" dark-mode color-theme="purple"></activity-grid>
 		</div>
 	`;
 
 	mappingList.appendChild(item);
 
-	// Initialize year to current year
-	gridYears.set(mappingId, new Date().getFullYear());
+	// Year will be initialized in updateActivityGrid when data is available
 
 	// Populate selects if data is loaded
 	const sttSelect = item.querySelector('.stt-activity-select') as HTMLSelectElement;
@@ -252,11 +251,11 @@ function updateActivityGrid(mappingId: number) {
 	// Show grid
 	gridContainer.style.display = 'block';
 
-	// Get minimum duration
-	const minDurationInput = document.getElementById('min-duration') as HTMLInputElement;
+	// Get minimum duration from the mapping item
+	const minDurationInput = item.querySelector('.min-duration-input') as HTMLInputElement;
 	const minDuration = minDurationInput ? parseInt(minDurationInput.value) || 0 : 0;
 
-	// Get existing repetitions (secondary color)
+	// Get existing repetitions
 	const existingData: any[] = [];
 	const existingDates = new Set<string>();
 	
@@ -264,43 +263,37 @@ function updateActivityGrid(mappingId: number) {
 		if (rep.habit_id === uhabitsHabitId && rep.value > 0) {
 			const date = new Date(rep.timestamp).toISOString().split('T')[0];
 			existingDates.add(date);
-			existingData.push({
-				date,
-				count: 2 // Map to secondary color at index 2
-			});
+			existingData.push({ date, count: 2 });
 		}
 	}
 
-	// Get new repetitions from STT (primary color)
+	// Get new repetitions from STT
 	const filteredRecords = filterRecordsByDuration(sttData.records, minDuration);
 	const typeRecords = getRecordsForType(filteredRecords, sttTypeId);
 	const dayGroups = groupRecordsByDay(typeRecords);
 
 	const newData: any[] = [];
 	for (const [dayStr, records] of dayGroups) {
-		// Only add if not already exists
 		if (!existingDates.has(dayStr)) {
-			newData.push({
-				date: dayStr,
-				count: 1 // Map to primary color at index 1
-			});
+			newData.push({ date: dayStr, count: 1 });
 		}
 	}
 
-	// Combine data
-	const allData = [...existingData, ...newData];
-
 	// Set grid properties
-	grid.data = allData;
+	grid.data = [...existingData, ...newData];
 	
-	// Use a custom color scheme: primary for new (count 1), secondary for existing (count 2)
-	const primaryColor = getComputedStyle(document.documentElement)
-		.getPropertyValue('--primary').trim();
-	const secondaryColor = getComputedStyle(document.documentElement)
-		.getPropertyValue('--secondary').trim();
-	
-	grid.colors = ['#ebedf0', primaryColor, secondaryColor, secondaryColor, secondaryColor];
-	grid.emptyColor = '#161b22';
+	// Initialize year to last entry year if not set
+	if (!gridYears.has(mappingId)) {
+		const allDates = [...existingData.map(d => d.date), ...newData.map(d => d.date)];
+		if (allDates.length > 0) {
+			allDates.sort();
+			const lastDate = allDates[allDates.length - 1];
+			const lastYear = new Date(lastDate).getFullYear();
+			gridYears.set(mappingId, lastYear);
+		} else {
+			gridYears.set(mappingId, new Date().getFullYear());
+		}
+	}
 	
 	// Get the current year for this grid
 	const displayYear = gridYears.get(mappingId) || new Date().getFullYear();

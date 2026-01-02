@@ -1,5 +1,8 @@
+import { parseString } from '@fast-csv/parse';
 import type { ParsedSttBackup, SttRecordType, SttRecord, SttCategory, SttRecordTag } from '../../types/stt';
 import { log } from '../../logger';
+
+type SttRowType = 'recordType' | 'record' | 'category' | 'recordTag';
 
 /**
  * Parse Simple Time Tracker TSV backup file
@@ -8,81 +11,102 @@ export async function parseSttBackup(file: File): Promise<ParsedSttBackup> {
 	log('Parsing STT backup file...', 'info');
 	
 	const text = await file.text();
-	const lines = text.split('\n').filter(line => line.trim());
 	
 	const recordTypes = new Map<number, SttRecordType>();
 	const records: SttRecord[] = [];
 	const categories = new Map<number, SttCategory>();
 	const recordTags = new Map<number, SttRecordTag>();
 	
-	for (const line of lines) {
-		const parts = line.split('\t');
-		const type = parts[0];
-		
-		if (type === 'recordType') {
-			// recordType	1	Guitar	🎸	2	0	0
-			const id = parseInt(parts[1]);
-			const name = parts[2] || '';
-			const emoji = parts[3] || '';
-			const color = parseInt(parts[4]) || 0;
-			const category_id = parseInt(parts[5]) || 0;
+	return new Promise<ParsedSttBackup>((resolve, reject) => {
+		parseString(text, {
+			delimiter: '\t',
+			headers: false,
+			ignoreEmpty: true,
+		})
+		.on('data', (row: string[]) => {
+			if (row.length === 0) return;
 			
-			recordTypes.set(id, { id, name, emoji, color, category_id });
+			const type = row[0] as SttRowType;
 			
-		} else if (type === 'record') {
-			// record	4	3	1691576017000	1691584365000	Fireship sveltekit course kung.foo
-			const id = parseInt(parts[1]);
-			const type_id = parseInt(parts[2]);
-			const start_timestamp = parseInt(parts[3]);
-			let end_timestamp = parseInt(parts[4]);
-			const comment = parts.slice(5).join('\t'); // rejoin in case comment has tabs
-			
-			// Handle malformed timestamps (e.g., ending with 'f')
-			if (isNaN(end_timestamp)) {
-				const endStr = parts[4];
-				if (endStr && endStr.endsWith('f')) {
-					end_timestamp = parseInt(endStr.slice(0, -1));
+			if (type === 'recordType') {
+				// recordType	1	Guitar	🎸	2	0	0
+				const recordType: SttRecordType = {
+					id: parseInt(row[1], 10),
+					name: row[2] || '',
+					emoji: row[3] || '',
+					color: parseInt(row[4], 10) || 0,
+					category_id: parseInt(row[5], 10) || 0,
+				};
+				
+				if (!isNaN(recordType.id)) {
+					recordTypes.set(recordType.id, recordType);
+				}
+				
+			} else if (type === 'record') {
+				// record	4	3	1691576017000	1691584365000	Fireship sveltekit course kung.foo
+				let end_timestamp = parseInt(row[4], 10);
+				
+				// Handle malformed timestamps (e.g., ending with 'f')
+				if (isNaN(end_timestamp)) {
+					const endStr = row[4];
+					if (endStr && endStr.endsWith('f')) {
+						end_timestamp = parseInt(endStr.slice(0, -1), 10);
+					}
+				}
+				
+				const record: SttRecord = {
+					id: parseInt(row[1], 10),
+					type_id: parseInt(row[2], 10),
+					start_timestamp: parseInt(row[3], 10),
+					end_timestamp,
+					comment: row.slice(5).join('\t') || undefined,
+				};
+				
+				// Skip invalid records
+				if (isNaN(record.id) || isNaN(record.type_id) || isNaN(record.start_timestamp) || isNaN(record.end_timestamp)) {
+					log(`Skipping invalid record: ${row.join('\t')}`, 'warn');
+					return;
+				}
+				
+				records.push(record);
+				
+			} else if (type === 'category') {
+				// category	1	2 - Productive Hobbies	9
+				const category: SttCategory = {
+					id: parseInt(row[1], 10),
+					name: row[2] || '',
+					color: parseInt(row[3], 10) || 0,
+				};
+				
+				if (!isNaN(category.id)) {
+					categories.set(category.id, category);
+				}
+				
+			} else if (type === 'recordTag') {
+				// recordTag	1		e-reader	0	0		📓	5		0
+				const recordTag: SttRecordTag = {
+					id: parseInt(row[1], 10),
+					name: row[3] || '',
+					emoji: row[7] || '',
+					color: parseInt(row[4], 10) || 0,
+					type_id: parseInt(row[5], 10) || 0,
+				};
+				
+				if (!isNaN(recordTag.id)) {
+					recordTags.set(recordTag.id, recordTag);
 				}
 			}
-			
-			// Skip invalid records
-			if (isNaN(id) || isNaN(type_id) || isNaN(start_timestamp) || isNaN(end_timestamp)) {
-				log(`Skipping invalid record: ${line}`, 'warn');
-				continue;
-			}
-			
-			records.push({
-				id,
-				type_id,
-				start_timestamp,
-				end_timestamp,
-				comment: comment || undefined
-			});
-			
-		} else if (type === 'category') {
-			// category	1	2 - Productive Hobbies	9
-			const id = parseInt(parts[1]);
-			const name = parts[2] || '';
-			const color = parseInt(parts[3]) || 0;
-			
-			categories.set(id, { id, name, color });
-			
-		} else if (type === 'recordTag') {
-			// recordTag	1		e-reader	0	0		📓	5		0
-			const id = parseInt(parts[1]);
-			const name = parts[3] || '';
-			const color = parseInt(parts[4]) || 0;
-			const type_id = parseInt(parts[5]) || 0;
-			const emoji = parts[7] || '';
-			
-			recordTags.set(id, { id, name, emoji, color, type_id });
-		}
-		// Ignore other line types (typeCategory, recordToRecordTag, prefs, etc.)
-	}
-	
-	log(`Parsed ${recordTypes.size} record types, ${records.length} records`, 'info');
-	
-	return { recordTypes, records, categories, recordTags };
+			// Ignore other line types (typeCategory, recordToRecordTag, prefs, etc.)
+		})
+		.on('error', (error: Error) => {
+			log(`Error parsing STT backup: ${error.message}`, 'error');
+			reject(error);
+		})
+		.on('end', (rowCount: number) => {
+			log(`Parsed ${recordTypes.size} record types, ${records.length} records (${rowCount} rows total)`, 'info');
+			resolve({ recordTypes, records, categories, recordTags });
+		});
+	});
 }
 
 /**

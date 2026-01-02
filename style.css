@@ -350,12 +350,12 @@ button:disabled {
 }
 
 button:hover:not(:disabled) {
-	transform: translateY(-2px);
+	transform: translateY(-1px);
 	box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
 }
 
 button:active:not(:disabled) {
-	transform: translateY(-1px);
+	transform: translateY(0px);
 }
 
 /* Debug Console */
@@ -440,9 +440,9 @@ button:active:not(:disabled) {
 	transition: border-color 0.2s;
 }
 
-.mapping-item:hover {
+/* .mapping-item:hover {
 	border-color: var(--border-hover);
-}
+} */
 
 .mapping-selects {
 	display: flex;
@@ -477,6 +477,7 @@ button:active:not(:disabled) {
 	box-shadow: 0 0 0 2px rgba(187, 134, 252, 0.1);
 }
 
+
 .mapping-arrow {
 	color: var(--primary);
 	font-size: 20px;
@@ -503,10 +504,6 @@ button:active:not(:disabled) {
 	color: var(--text);
 	font-size: 13px;
 	transition: border-color 0.2s;
-}
-
-.min-duration-input:hover {
-	border-color: var(--border-hover);
 }
 
 .min-duration-input:focus {
@@ -558,6 +555,7 @@ button:active:not(:disabled) {
 }
 
 .grid-year-nav button:hover {
+	transform: translate(0,0);
 	background: var(--button-bg-hover);
 	border-color: var(--primary);
 }

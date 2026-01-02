@@ -1,6 +1,15 @@
 ## npconv
 Convert between [newpipe](https://github.com/TeamNewPipe/NewPipe) and [libretube](https://github.com/libre-tube/LibreTube) backups. [Go to npconv](https://kraxen72.github.io/npconv/)  
 
+## WIP
+The app is work-in-progress. All of the features may or may not work as expected.
+- [ ] verify uhabits output for correcteness & test it in-app
+- [ ] merge uhabits branch into main
+- [ ] clean up UI to look less vibecoded
+- [ ] convert UI to solidjs
+- [ ] add screenshots to README & update it to reflect new app functionality
+
+# old README (for now, will be updated later)
 If you have used both apps in the past, for best results, use the `Merge` option.
 I have tested the tool both ways and it worked for me fine.  
 
