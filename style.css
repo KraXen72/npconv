@@ -536,12 +536,46 @@ button:active:not(:disabled) {
 	background: #0d0d0d;
 	border-radius: 6px;
 	border: 1px solid var(--border);
-	overflow-x: auto;
+}
+
+.grid-year-nav {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 15px;
+	margin-bottom: 15px;
+}
+
+.grid-year-nav button {
+	min-width: unset;
+	padding: 6px 12px;
+	background: var(--button-bg);
+	border: 1px solid var(--border);
+	border-radius: 4px;
+	color: var(--text);
+	cursor: pointer;
+	transition: background-color 0.14s, border-color 0.14s;
+}
+
+.grid-year-nav button:hover {
+	background: var(--button-bg-hover);
+	border-color: var(--primary);
+}
+
+.grid-year-nav button:active {
+	background: var(--button-bg-active);
+}
+
+.grid-year-display {
+	font-size: 16px;
+	font-weight: 600;
+	color: var(--text);
+	min-width: 60px;
+	text-align: center;
 }
 
 .habit-preview-grid {
 	width: 100%;
-	min-width: 800px;
 }
 
 .summary-box {

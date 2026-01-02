@@ -10,6 +10,7 @@ import { log } from '../../logger';
 let sttData: ParsedSttBackup | null = null;
 let uhabitsData: ParsedUHabitsBackup | null = null;
 let nextMappingId = 0;
+const gridYears = new Map<number, number>(); // mappingId -> current year
 
 export function setupSttHandlers(SQL: SqlJsStatic) {
 	const sttInput = document.getElementById('file-left') as HTMLInputElement | null;
@@ -89,11 +90,19 @@ function addMapping() {
 			</button>
 		</div>
 		<div class="activity-grid-container" style="display: none;">
+			<div class="grid-year-nav">
+				<button class="year-prev" data-mapping-id="${mappingId}" title="Previous year">◀</button>
+				<span class="grid-year-display"></span>
+				<button class="year-next" data-mapping-id="${mappingId}" title="Next year">▶</button>
+			</div>
 			<activity-grid class="habit-preview-grid" dark-mode></activity-grid>
 		</div>
 	`;
 
 	mappingList.appendChild(item);
+
+	// Initialize year to current year
+	gridYears.set(mappingId, new Date().getFullYear());
 
 	// Populate selects if data is loaded
 	const sttSelect = item.querySelector('.stt-activity-select') as HTMLSelectElement;
@@ -124,10 +133,31 @@ function addMapping() {
 	// Remove button
 	const removeBtn = item.querySelector('.remove-mapping') as HTMLButtonElement;
 	removeBtn.addEventListener('click', () => {
+		gridYears.delete(mappingId);
 		item.remove();
 		updateSummary();
 		updateConvertButton();
 	});
+
+	// Year navigation buttons
+	const yearPrevBtn = item.querySelector('.year-prev') as HTMLButtonElement;
+	const yearNextBtn = item.querySelector('.year-next') as HTMLButtonElement;
+	
+	if (yearPrevBtn) {
+		yearPrevBtn.addEventListener('click', () => {
+			const currentYear = gridYears.get(mappingId) || new Date().getFullYear();
+			gridYears.set(mappingId, currentYear - 1);
+			updateActivityGrid(mappingId);
+		});
+	}
+	
+	if (yearNextBtn) {
+		yearNextBtn.addEventListener('click', () => {
+			const currentYear = gridYears.get(mappingId) || new Date().getFullYear();
+			gridYears.set(mappingId, currentYear + 1);
+			updateActivityGrid(mappingId);
+		});
+	}
 }
 
 function populateSttSelect(select: HTMLSelectElement) {
@@ -226,7 +256,7 @@ function updateActivityGrid(mappingId: number) {
 	const minDurationInput = document.getElementById('min-duration') as HTMLInputElement;
 	const minDuration = minDurationInput ? parseInt(minDurationInput.value) || 0 : 0;
 
-	// Get existing repetitions (gray)
+	// Get existing repetitions (secondary color)
 	const existingData: any[] = [];
 	const existingDates = new Set<string>();
 	
@@ -236,7 +266,7 @@ function updateActivityGrid(mappingId: number) {
 			existingDates.add(date);
 			existingData.push({
 				date,
-				count: 1
+				count: 2 // Map to secondary color at index 2
 			});
 		}
 	}
@@ -252,7 +282,7 @@ function updateActivityGrid(mappingId: number) {
 		if (!existingDates.has(dayStr)) {
 			newData.push({
 				date: dayStr,
-				count: 2 // Higher count for primary color
+				count: 1 // Map to primary color at index 1
 			});
 		}
 	}
@@ -263,20 +293,30 @@ function updateActivityGrid(mappingId: number) {
 	// Set grid properties
 	grid.data = allData;
 	
-	// Use a custom color scheme: gray for existing, primary for new
+	// Use a custom color scheme: primary for new (count 1), secondary for existing (count 2)
 	const primaryColor = getComputedStyle(document.documentElement)
 		.getPropertyValue('--primary').trim();
+	const secondaryColor = getComputedStyle(document.documentElement)
+		.getPropertyValue('--secondary').trim();
 	
-	grid.colors = ['#ebedf0', '#6b7280', primaryColor, primaryColor, primaryColor];
+	grid.colors = ['#ebedf0', primaryColor, secondaryColor, secondaryColor, secondaryColor];
 	grid.emptyColor = '#161b22';
 	
-	// Set date range to show last year
-	const endDate = new Date();
-	const startDate = new Date();
-	startDate.setFullYear(startDate.getFullYear() - 1);
+	// Get the current year for this grid
+	const displayYear = gridYears.get(mappingId) || new Date().getFullYear();
+	
+	// Set date range to show the selected year
+	const startDate = new Date(displayYear, 0, 1); // Jan 1st of the year
+	const endDate = new Date(displayYear, 11, 31); // Dec 31st of the year
 	
 	grid.endDate = endDate.toISOString().split('T')[0];
 	grid.startDate = startDate.toISOString().split('T')[0];
+	
+	// Update year display
+	const yearDisplay = gridContainer.querySelector('.grid-year-display') as HTMLElement;
+	if (yearDisplay) {
+		yearDisplay.textContent = displayYear.toString();
+	}
 }
 
 function updateSummary() {
@@ -338,7 +378,6 @@ function updateSummary() {
 			<ul>
 				<li>${validMappings} mapping(s) configured</li>
 				<li>${totalNewDays} new repetitions will be added</li>
-				<li>Existing uHabits data will be preserved</li>
 				${mappingDetails.map(d => `<li>${d}</li>`).join('')}
 			</ul>
 		`;
