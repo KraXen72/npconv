@@ -1,9 +1,9 @@
 import JSZip from 'jszip';
 import type { SqlJsStatic } from 'sql.js';
-import { SERVICE_ID_YOUTUBE } from '../constants';
-import { log } from '../logger';
-import type { LibreTubeBackup, LibreTubeHistoryItem, LibreTubeLocalPlaylist, LibreTubePlaylistBookmark, LibreTubeVideo } from '../types/libretube';
-import { clampToSafeInt, downloadFile, extractVideoIdFromUrl, formatUploadDate, getTimestamp, parseAccessDateToMs } from '../utils';
+import { SERVICE_ID_YOUTUBE } from '../../constants';
+import { log } from '../../logger';
+import type { LibreTubeBackup, LibreTubeHistoryItem, LibreTubeLocalPlaylist, LibreTubePlaylistBookmark, LibreTubeVideo } from '../../types/libretube';
+import { clampToSafeInt, downloadFile, extractVideoIdFromUrl, formatUploadDate, getTimestamp, parseAccessDateToMs } from '../../utils';
 
 export async function convertToLibreTube(npFile: File | undefined, ltFile: File | undefined, mode: string, SQL: SqlJsStatic, playlistBehavior?: string, includeWatchHistoryParam?: boolean) {
 	log("Starting conversion to LibreTube format...");

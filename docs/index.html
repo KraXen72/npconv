@@ -4,11 +4,10 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>NewPipe ⇌ LibreTube Backup Converter</title>
-
+	<title>npconv backup converter</title>
 	<!-- Bundled JS will include dependencies (jszip, sql.js) -->
-  <script type="module" crossorigin src="/npconv/assets/index-DvI8Jkp3.js"></script>
-  <link rel="stylesheet" crossorigin href="/npconv/assets/index-CA9XYH0E.css">
+  <script type="module" crossorigin src="/npconv/assets/index-Bxy7NnMy.js"></script>
+  <link rel="stylesheet" crossorigin href="/npconv/assets/index-Bpe8BQ-G.css">
 </head>
 
 <body>
@@ -21,6 +20,8 @@
 				<label for="mode-merge" class="mode-pill">Merge</label>
 				<input type="radio" id="mode-convert" name="mode" value="convert" onchange="updateUI()">
 				<label for="mode-convert" class="mode-pill">Convert</label>
+				<input type="radio" id="mode-stt" name="mode" value="stt" onchange="updateUI()">
+				<label for="mode-stt" class="mode-pill">STT → uHabits</label>
 			</div>
 		</div>
 
@@ -66,11 +67,61 @@
 				<button id="btn-to-newpipe" onclick="processBackup('to_newpipe')">Target: NewPipe</button>
 				<button id="btn-to-libretube" onclick="processBackup('to_libretube')">Target: LibreTube</button>
 			</div>
-
-
 		</div>
 
-		<div class="file-area">
+		<!-- STT to uHabits controls (visible when stt mode selected) -->
+		<div id="stt-controls" class="controls-block" style="display:none;">
+			<h3>STT → uHabits Conversion</h3>
+			
+			<!-- File uploads -->
+			<div class="file-area">
+				<div class="drop-zone" id="zone-stt" role="button" tabindex="0" aria-label="Select STT backup">
+					<h4>Simple Time Tracker Backup</h4>
+					<p><small class="hint">Upload your .tsv or .db backup file</small></p>
+					<input type="file" id="file-stt" accept=".tsv,.db">
+					<div class="file-name" aria-live="polite"></div>
+				</div>
+				
+				<div class="drop-zone" id="zone-uhabits" role="button" tabindex="0" aria-label="Select uHabits backup">
+					<h4>uHabits Backup</h4>
+					<p><small class="hint">Upload your .backup or .db file</small></p>
+					<input type="file" id="file-uhabits" accept=".backup,.db">
+					<div class="file-name" aria-live="polite"></div>
+				</div>
+			</div>
+			
+			<!-- Minimum duration filter -->
+			<div class="filter-controls">
+				<label>
+					Minimum duration:
+					<input type="number" id="min-duration" value="5" min="0" step="1">
+					minutes
+				</label>
+			</div>
+			
+			<!-- Conversion mappings list -->
+			<div id="conversion-mappings">
+				<h4>Activity Mappings</h4>
+				<div id="mapping-list">
+					<!-- Mapping items will be added here dynamically -->
+				</div>
+				<button id="add-mapping" type="button">+ Add Mapping</button>
+			</div>
+			
+			<!-- Summary -->
+			<div id="conversion-summary" class="summary-box" style="display: none;">
+				<!-- Summary content will be generated dynamically -->
+			</div>
+			
+			<!-- Convert button -->
+			<div class="controls">
+				<button id="btn-convert-stt" disabled>
+					Convert STT → uHabits
+				</button>
+			</div>
+		</div>
+
+		<div class="file-area" id="main-file-area">
 			<div class="drop-zone" id="zone-newpipe" role="button" tabindex="0" aria-label="Select NewPipe backup">
 				<h4>NewPipe Backup (.zip)</h4>
 				<p><small class="hint">Contains newpipe.db<br>click/drop file to upload</small></p>

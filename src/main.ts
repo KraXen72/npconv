@@ -1,8 +1,10 @@
 import '../style.css';
-import { initSQL } from './sqlHelper';
+import 'activity-grid';
+import { initSQL as initSqlJs } from './sqlHelper';
 import { log } from './logger';
-import { convertToNewPipe } from './converters/toNewPipe';
-import { convertToLibreTube } from './converters/toLibreTube';
+import { convertToNewPipe } from './converters/newpipe-libretube/toNewPipe';
+import { convertToLibreTube } from './converters/newpipe-libretube/toLibreTube';
+import { setupSttHandlers } from './converters/stt-uhabits/sttHandlers';
 import type { SqlJsStatic } from 'sql.js';
 
 let SQL: SqlJsStatic;
@@ -11,13 +13,14 @@ let SQL: SqlJsStatic;
 window.onload = async () => {
   log("Initializing SQL.js...");
   try {
-    SQL = await initSQL();
+    SQL = await initSqlJs();
     log("SQL.js ready.");
   } catch (e: any) {
     log("Error loading SQL.js: " + (e.message || e.toString()), "err");
   }
   updateUI();
   setupDropZones();
+  setupSttHandlers(SQL);
 };
 
 // --- UI Logic ---
@@ -28,17 +31,29 @@ export function updateUI() {
   const fileLT = document.getElementById('file-libretube') as HTMLInputElement | null;
   const mergeBlock = document.getElementById('merge-controls') as HTMLDivElement | null;
   const convertBlock = document.getElementById('convert-controls') as HTMLDivElement | null;
+  const sttBlock = document.getElementById('stt-controls') as HTMLDivElement | null;
+  const mainFileArea = document.getElementById('main-file-area') as HTMLDivElement | null;
 
-  if (!fileNP || !fileLT || !mergeBlock || !convertBlock) return;
+  if (!fileNP || !fileLT || !mergeBlock || !convertBlock || !sttBlock || !mainFileArea) return;
 
-  if (mode === 'merge') {
+  if (mode === 'stt') {
+    // STT mode
+    mergeBlock.style.display = 'none';
+    convertBlock.style.display = 'none';
+    sttBlock.style.display = '';
+    mainFileArea.style.display = 'none';
+  } else if (mode === 'merge') {
     mergeBlock.style.display = '';
     convertBlock.style.display = 'none';
+    sttBlock.style.display = 'none';
+    mainFileArea.style.display = '';
     fileNP.disabled = false;
     fileLT.disabled = false;
   } else {
     mergeBlock.style.display = 'none';
     convertBlock.style.display = '';
+    sttBlock.style.display = 'none';
+    mainFileArea.style.display = '';
     // in convert mode, allow picking either file depending on action
     fileNP.disabled = false;
     fileLT.disabled = false;
@@ -168,3 +183,4 @@ function setupDropZones() {
     });
   });
 }
+
