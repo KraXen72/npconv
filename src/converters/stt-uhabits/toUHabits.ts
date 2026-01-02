@@ -11,11 +11,9 @@ export async function convertSttToUHabits(
 	sttFile: File,
 	uhabitsFile: File,
 	mappings: ConversionMapping[],
-	minDurationMinutes: number,
 	SQL: SqlJsStatic
 ): Promise<Blob> {
 	log('=== Starting STT → uHabits Conversion ===', 'info');
-	log(`Minimum duration filter: ${minDurationMinutes} minutes`, 'info');
 	log(`Number of mappings: ${mappings.length}`, 'info');
 	
 	// Parse STT backup
@@ -27,10 +25,6 @@ export async function convertSttToUHabits(
 	const uhabitsData = await parseUHabitsBackup(uhabitsFile, SQL);
 	log(`Loaded ${uhabitsData.habits.size} uHabits habits (boolean only)`, 'info');
 	log(`Loaded ${uhabitsData.repetitions.length} existing repetitions`, 'info');
-	
-	// Filter by duration
-	const filteredRecords = filterRecordsByDuration(sttData.records, minDurationMinutes);
-	log(`After duration filter: ${filteredRecords.length} records`, 'info');
 	
 	// Create output database with existing schema
 	const db = createUHabitsDatabase(SQL);
@@ -83,6 +77,13 @@ export async function convertSttToUHabits(
 		}
 		
 		log(`\nProcessing mapping: "${sttType.emoji} ${sttType.name}" → "${uhabit.name}"`, 'info');
+		
+		// Apply per-mapping duration filter
+		const minDuration = mapping.minDuration || 0;
+		if (minDuration > 0) {
+			log(`  Minimum duration: ${minDuration} minutes`, 'info');
+		}
+		const filteredRecords = filterRecordsByDuration(sttData.records, minDuration);
 		
 		// Filter records for this specific activity type
 		const typeRecords = getRecordsForType(filteredRecords, mapping.sttTypeId);

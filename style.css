@@ -160,6 +160,10 @@ h3 {
 	outline: 2px solid rgba(187, 134, 252, 0.08);
 }
 
+#global-options {
+	padding-bottom: 1rem;
+}
+
 /* Merge/convert control blocks */
 .controls-block {
 	margin-top: 12px;
@@ -442,6 +446,37 @@ button:active:not(:disabled) {
 	font-size: 20px;
 	font-weight: bold;
 	flex-shrink: 0;
+}
+
+.min-duration-label {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 13px;
+	color: var(--text);
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+.min-duration-input {
+	width: 60px;
+	padding: 6px 8px;
+	background: #1b1b1b;
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	color: var(--text);
+	font-size: 13px;
+	transition: border-color 0.2s;
+}
+
+.min-duration-input:hover {
+	border-color: var(--border-hover);
+}
+
+.min-duration-input:focus {
+	outline: none;
+	border-color: var(--primary);
+	box-shadow: 0 0 0 2px rgba(187, 134, 252, 0.1);
 }
 
 .remove-mapping {

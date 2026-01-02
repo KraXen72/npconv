@@ -12,11 +12,10 @@ let uhabitsData: ParsedUHabitsBackup | null = null;
 let nextMappingId = 0;
 
 export function setupSttHandlers(SQL: SqlJsStatic) {
-	const sttInput = document.getElementById('file-stt') as HTMLInputElement | null;
-	const uhabitsInput = document.getElementById('file-uhabits') as HTMLInputElement | null;
+	const sttInput = document.getElementById('file-left') as HTMLInputElement | null;
+	const uhabitsInput = document.getElementById('file-right') as HTMLInputElement | null;
 	const addMappingBtn = document.getElementById('add-mapping') as HTMLButtonElement | null;
 	const convertBtn = document.getElementById('btn-convert-stt') as HTMLButtonElement | null;
-	const minDurationInput = document.getElementById('min-duration') as HTMLInputElement | null;
 
 	if (!sttInput || !uhabitsInput || !addMappingBtn || !convertBtn) return;
 
@@ -57,17 +56,6 @@ export function setupSttHandlers(SQL: SqlJsStatic) {
 	// Convert button
 	convertBtn.addEventListener('click', async () => await performSttConversion(SQL));
 
-	// Min duration change
-	if (minDurationInput) {
-		minDurationInput.addEventListener('change', () => {
-			document.querySelectorAll('.mapping-item').forEach(item => {
-				const mappingId = parseInt(item.getAttribute('data-mapping-id') || '0');
-				updateActivityGrid(mappingId);
-			});
-			updateSummary();
-		});
-	}
-
 	// Add first empty mapping
 	addMapping();
 }
@@ -91,6 +79,11 @@ function addMapping() {
 			<select class="uhabits-habit-select" data-mapping-id="${mappingId}">
 				<option value="">Select uHabits habit...</option>
 			</select>
+			<label class="min-duration-label">
+				Min:
+				<input type="number" class="min-duration-input" value="5" min="0" step="1" title="Minimum duration in minutes">
+				min
+			</label>
 			<button class="remove-mapping" aria-label="Remove mapping">×</button>
 		</div>
 		<div class="activity-grid-container" style="display: none;">
@@ -116,6 +109,15 @@ function addMapping() {
 		updateActivityGrid(mappingId);
 		updateSummary();
 	});
+
+	// Min duration listener
+	const minDurationInput = item.querySelector('.min-duration-input') as HTMLInputElement;
+	if (minDurationInput) {
+		minDurationInput.addEventListener('change', () => {
+			updateActivityGrid(mappingId);
+			updateSummary();
+		});
+	}
 
 	// Remove button
 	const removeBtn = item.querySelector('.remove-mapping') as HTMLButtonElement;
@@ -146,11 +148,44 @@ function populateUHabitsSelect(select: HTMLSelectElement) {
 	// Clear existing options except first
 	select.innerHTML = '<option value="">Select uHabits habit...</option>';
 
+	// Separate active and archived habits
+	const activeHabits: Array<[number, typeof uhabitsData.habits extends Map<any, infer T> ? T : never]> = [];
+	const archivedHabits: Array<[number, typeof uhabitsData.habits extends Map<any, infer T> ? T : never]> = [];
+
 	for (const [id, habit] of uhabitsData.habits) {
+		if (habit.archived) {
+			archivedHabits.push([id, habit]);
+		} else {
+			activeHabits.push([id, habit]);
+		}
+	}
+
+	// Add active habits
+	for (const [id, habit] of activeHabits) {
 		const option = document.createElement('option');
 		option.value = id.toString();
 		option.textContent = `${habit.name} (id: ${id})`;
 		select.appendChild(option);
+	}
+
+	// Add divider if there are archived habits
+	if (archivedHabits.length > 0) {
+		const divider = document.createElement('option');
+		divider.disabled = true;
+		divider.textContent = '─── Archived ───';
+		divider.style.fontStyle = 'italic';
+		divider.style.color = '#888';
+		select.appendChild(divider);
+
+		// Add archived habits
+		for (const [id, habit] of archivedHabits) {
+			const option = document.createElement('option');
+			option.value = id.toString();
+			option.textContent = `${habit.name} (id: ${id})`;
+			option.style.fontStyle = 'italic';
+			option.style.opacity = '0.7';
+			select.appendChild(option);
+		}
 	}
 }
 
@@ -248,8 +283,6 @@ function updateSummary() {
 	if (!summaryBox || !sttData || !uhabitsData) return;
 
 	const mappingItems = document.querySelectorAll('.mapping-item');
-	const minDurationInput = document.getElementById('min-duration') as HTMLInputElement;
-	const minDuration = minDurationInput ? parseInt(minDurationInput.value) || 0 : 0;
 
 	let validMappings = 0;
 	let totalNewDays = 0;
@@ -259,6 +292,7 @@ function updateSummary() {
 		const item = mappingItems[i];
 		const sttSelect = item.querySelector('.stt-activity-select') as HTMLSelectElement;
 		const uhabitsSelect = item.querySelector('.uhabits-habit-select') as HTMLSelectElement;
+		const minDurationInput = item.querySelector('.min-duration-input') as HTMLInputElement;
 
 		const sttTypeId = parseInt(sttSelect.value);
 		const uhabitsHabitId = parseInt(uhabitsSelect.value);
@@ -270,6 +304,8 @@ function updateSummary() {
 			const uhabit = uhabitsData!.habits.get(uhabitsHabitId);
 
 			if (sttType && uhabit) {
+				// Get min duration for this specific mapping
+				const minDuration = minDurationInput ? parseInt(minDurationInput.value) || 0 : 0;
 				// Calculate new days for this mapping
 				const filteredRecords = filterRecordsByDuration(sttData!.records, minDuration);
 				const typeRecords = getRecordsForType(filteredRecords, sttTypeId);
@@ -314,8 +350,8 @@ function updateConvertButton() {
 	const convertBtn = document.getElementById('btn-convert-stt') as HTMLButtonElement;
 	if (!convertBtn) return;
 
-	const sttInput = document.getElementById('file-stt') as HTMLInputElement;
-	const uhabitsInput = document.getElementById('file-uhabits') as HTMLInputElement;
+	const sttInput = document.getElementById('file-left') as HTMLInputElement;
+	const uhabitsInput = document.getElementById('file-right') as HTMLInputElement;
 	const hasMappings = document.querySelectorAll('.mapping-item').length > 0;
 
 	const canConvert = sttData && uhabitsData && 
@@ -327,8 +363,8 @@ function updateConvertButton() {
 async function performSttConversion(SQL: SqlJsStatic) {
 	if (!sttData || !uhabitsData) return;
 
-	const sttInput = document.getElementById('file-stt') as HTMLInputElement;
-	const uhabitsInput = document.getElementById('file-uhabits') as HTMLInputElement;
+	const sttInput = document.getElementById('file-left') as HTMLInputElement;
+	const uhabitsInput = document.getElementById('file-right') as HTMLInputElement;
 	const sttFile = sttInput?.files?.[0];
 	const uhabitsFile = uhabitsInput?.files?.[0];
 
@@ -337,7 +373,7 @@ async function performSttConversion(SQL: SqlJsStatic) {
 		return;
 	}
 
-	// Gather mappings from UI
+	// Gather mappings from UI with per-mapping min duration
 	const mappings: ConversionMapping[] = [];
 	const mappingItems = document.querySelectorAll('.mapping-item');
 
@@ -345,12 +381,14 @@ async function performSttConversion(SQL: SqlJsStatic) {
 		const item = mappingItems[i];
 		const sttSelect = item.querySelector('.stt-activity-select') as HTMLSelectElement;
 		const uhabitsSelect = item.querySelector('.uhabits-habit-select') as HTMLSelectElement;
+		const minDurationInput = item.querySelector('.min-duration-input') as HTMLInputElement;
 
 		const sttTypeId = parseInt(sttSelect.value);
 		const uhabitsHabitId = parseInt(uhabitsSelect.value);
+		const minDuration = minDurationInput ? parseInt(minDurationInput.value) || 0 : 0;
 
 		if (sttTypeId && uhabitsHabitId) {
-			mappings.push({ sttTypeId, uhabitsHabitId });
+			mappings.push({ sttTypeId, uhabitsHabitId, minDuration });
 		}
 	}
 
@@ -363,16 +401,12 @@ async function performSttConversion(SQL: SqlJsStatic) {
 		const convertBtn = document.getElementById('btn-convert-stt') as HTMLButtonElement;
 		if (convertBtn) convertBtn.disabled = true;
 
-		const minDurationInput = document.getElementById('min-duration') as HTMLInputElement;
-		const minDuration = minDurationInput ? parseInt(minDurationInput.value) || 0 : 0;
-
 		log('Starting conversion...', 'info');
 
 		const blob = await convertSttToUHabits(
 			sttFile,
 			uhabitsFile,
 			mappings,
-			minDuration,
 			SQL
 		);
 

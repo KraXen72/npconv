@@ -35,4 +35,5 @@ export interface ParsedUHabitsBackup {
 export interface ConversionMapping {
 	sttTypeId: number;
 	uhabitsHabitId: number;
+	minDuration?: number;
 }

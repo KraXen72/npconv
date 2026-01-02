@@ -20,7 +20,7 @@
 				<input type="radio" id="mode-convert" name="mode" value="convert" onchange="updateUI()">
 				<label for="mode-convert" class="mode-pill">NewPipe ⇌ LibreTube: Convert</label>
 				<input type="radio" id="mode-stt" name="mode" value="stt" onchange="updateUI()">
-				<label for="mode-stt" class="mode-pill">SimpleTimeTracker ⇌ uHabits: Fill</label>
+				<label for="mode-stt" class="mode-pill">SimpleTimeTracker → uHabits</label>
 			</div>
 		</div>
 
@@ -62,33 +62,7 @@
 		</section>
 
 		<section id="action-stt-uhabits-fill" class="controls-block" style="display:none;">
-			<h3>SimpleTimeTracker ⇌ uHabits: Fill</h3>
-			
-			<!-- File uploads -->
-			<div class="file-area">
-				<div class="drop-zone" id="zone-stt" role="button" tabindex="0" aria-label="Select STT backup">
-					<h4>Simple Time Tracker Backup</h4>
-					<p><small class="hint">Upload your .tsv or .db backup file</small></p>
-					<input type="file" id="file-stt" accept=".tsv,.db">
-					<div class="file-name" aria-live="polite"></div>
-				</div>
-				
-				<div class="drop-zone" id="zone-uhabits" role="button" tabindex="0" aria-label="Select uHabits backup">
-					<h4>uHabits Backup</h4>
-					<p><small class="hint">Upload your .backup or .db file</small></p>
-					<input type="file" id="file-uhabits" accept=".backup,.db">
-					<div class="file-name" aria-live="polite"></div>
-				</div>
-			</div>
-			
-			<!-- Minimum duration filter -->
-			<div class="filter-controls">
-				<label>
-					Minimum duration:
-					<input type="number" id="min-duration" value="5" min="0" step="1">
-					minutes
-				</label>
-			</div>
+			<h3>SimpleTimeTracker → uHabits</h3>
 			
 			<!-- Conversion mappings list -->
 			<div id="conversion-mappings">
@@ -118,17 +92,17 @@
 		</div>
 
 		<section id="main-file-area" class="file-area">
-			<div class="drop-zone" id="zone-newpipe" role="button" tabindex="0" aria-label="Select NewPipe backup">
-				<h4>NewPipe Backup (.zip)</h4>
-				<p><small class="hint">Contains newpipe.db<br>click/drop file to upload</small></p>
-				<input type="file" id="file-newpipe" accept=".zip">
+			<div class="drop-zone" id="zone-left" role="button" tabindex="0" aria-label="Select left file">
+				<h4 class="zone-title" data-merge="NewPipe Backup (.zip)" data-convert="NewPipe Backup (.zip)" data-stt="Simple Time Tracker (.tsv/.db)">NewPipe Backup (.zip)</h4>
+				<p><small class="hint zone-hint" data-merge="Contains newpipe.db<br>click/drop file to upload" data-convert="Contains newpipe.db<br>click/drop file to upload" data-stt="Upload your .tsv or .db backup file<br>click/drop file to upload">Contains newpipe.db<br>click/drop file to upload</small></p>
+				<input type="file" id="file-left" data-merge=".zip" data-convert=".zip" data-stt=".tsv,.db" accept=".zip">
 				<div class="file-name" aria-live="polite"></div>
 			</div>
 
-			<div class="drop-zone" id="zone-libretube" role="button" tabindex="0" aria-label="Select LibreTube backup">
-				<h4>LibreTube Backup (.json)</h4>
-				<p><small class="hint">JSON export file<br>click/drop file to upload</small></p>
-				<input type="file" id="file-libretube" accept=".json">
+			<div class="drop-zone" id="zone-right" role="button" tabindex="0" aria-label="Select right file">
+				<h4 class="zone-title" data-merge="LibreTube Backup (.json)" data-convert="LibreTube Backup (.json)" data-stt="uHabits Backup (.backup/.db)">LibreTube Backup (.json)</h4>
+				<p><small class="hint zone-hint" data-merge="JSON export file<br>click/drop file to upload" data-convert="JSON export file<br>click/drop file to upload" data-stt="Upload your .backup or .db file<br>click/drop file to upload">JSON export file<br>click/drop file to upload</small></p>
+				<input type="file" id="file-right" data-merge=".json" data-convert=".json" data-stt=".backup,.db" accept=".json">
 				<div class="file-name" aria-live="polite"></div>
 			</div>
 		</section>

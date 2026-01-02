@@ -28,51 +28,62 @@ const UIMap: Record<string, string[]> = {
 	"action-newpipe-libretube-convert": ["convert"],
 	"action-stt-uhabits-fill": ["stt"],
 	"global-options": ["convert", "merge"],
-	"main-file-area": ["convert", "merge"],
-	"file-newpipe": ["convert", "merge"],
-	"file-libretube": ["convert", "merge"],
+	"main-file-area": ["convert", "merge", "stt"],
 } as const;
 
 // --- UI Logic ---
 export function updateUI() {
   const modeEl = document.querySelector('input[name="mode"]:checked') as HTMLInputElement | null;
   const mode = modeEl ? modeEl.value : 'convert';
-  const fileNP = document.getElementById('file-newpipe') as HTMLInputElement | null;
-  const fileLT = document.getElementById('file-libretube') as HTMLInputElement | null;
 
   const mergeBlock = document.getElementById('action-newpipe-libretube-merge') as HTMLDivElement | null;
   const convertBlock = document.getElementById('action-newpipe-libretube-convert') as HTMLDivElement | null;
   const sttBlock = document.getElementById('action-stt-uhabits-fill') as HTMLDivElement | null;
-
-	const globalOptions = document.getElementById("global-options") as HTMLDivElement | null;
+  const globalOptions = document.getElementById("global-options") as HTMLDivElement | null;
   const mainFileArea = document.getElementById('main-file-area') as HTMLDivElement | null;
 
-  if (!fileNP || !fileLT || !mergeBlock || !convertBlock || !sttBlock || !globalOptions || !mainFileArea) return;
+  if (!mergeBlock || !convertBlock || !sttBlock || !globalOptions || !mainFileArea) return;
 
-	for (const [id, allowedModes] of Object.entries(UIMap)) {
-		const elem = document.getElementById(id);
-		if (allowedModes.includes(mode)) {
-			elem.style.display = '';
-			if (id.startsWith("file")) (elem as HTMLInputElement).disabled = false;
-		} else {
-			elem.style.display = 'none';
-			if (id.startsWith("file")) (elem as HTMLInputElement).disabled = true;
-		}
-	}
+  // Show/hide blocks based on mode
+  for (const [id, allowedModes] of Object.entries(UIMap)) {
+    const elem = document.getElementById(id);
+    if (!elem) continue;
+    elem.style.display = allowedModes.includes(mode) ? '' : 'none';
+  }
+
+  // Update dynamic content in file zones based on mode
+  document.querySelectorAll('.zone-title, .zone-hint').forEach(elem => {
+    const attr = elem.getAttribute(`data-${mode}`);
+    if (attr) elem.innerHTML = attr;
+  });
+
+  // Update file input accept attributes
+  const fileLeft = document.getElementById('file-left') as HTMLInputElement | null;
+  const fileRight = document.getElementById('file-right') as HTMLInputElement | null;
+  if (fileLeft) {
+    const accept = fileLeft.getAttribute(`data-${mode}`);
+    if (accept) fileLeft.accept = accept;
+  }
+  if (fileRight) {
+    const accept = fileRight.getAttribute(`data-${mode}`);
+    if (accept) fileRight.accept = accept;
+  }
 }
 
 export async function processBackup(direction: 'to_newpipe' | 'to_libretube') {
   const modeEl = document.querySelector('input[name="mode"]:checked') as HTMLInputElement | null;
   const mode = modeEl ? modeEl.value : 'convert';
-  const npFile = (document.getElementById('file-newpipe') as HTMLInputElement).files?.[0];
-  const ltFile = (document.getElementById('file-libretube') as HTMLInputElement).files?.[0];
+  const leftFile = (document.getElementById('file-left') as HTMLInputElement).files?.[0];
+  const rightFile = (document.getElementById('file-right') as HTMLInputElement).files?.[0];
+  const npFile = leftFile;
+  const ltFile = rightFile;
 
-  if (mode === 'merge' && (!npFile || !ltFile)) {
+  if (mode === 'merge' && (!leftFile || !rightFile)) {
     return log("Merge mode requires BOTH files.", "err");
   }
   if (mode === 'convert') {
-    if (direction === 'to_newpipe' && !ltFile) return log("Missing LibreTube source file.", "err");
-    if (direction === 'to_libretube' && !npFile) return log("Missing NewPipe source file.", "err");
+    if (direction === 'to_newpipe' && !rightFile) return log("Missing LibreTube source file.", "err");
+    if (direction === 'to_libretube' && !leftFile) return log("Missing NewPipe source file.", "err");
   }
 
   try {
