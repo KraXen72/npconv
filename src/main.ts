@@ -23,41 +23,42 @@ window.onload = async () => {
   setupSttHandlers(SQL);
 };
 
+const UIMap: Record<string, string[]> = {
+	"action-newpipe-libretube-merge": ["merge"],
+	"action-newpipe-libretube-convert": ["convert"],
+	"action-stt-uhabits-fill": ["stt"],
+	"global-options": ["convert", "merge"],
+	"main-file-area": ["convert", "merge"],
+	"file-newpipe": ["convert", "merge"],
+	"file-libretube": ["convert", "merge"],
+} as const;
+
 // --- UI Logic ---
 export function updateUI() {
   const modeEl = document.querySelector('input[name="mode"]:checked') as HTMLInputElement | null;
   const mode = modeEl ? modeEl.value : 'convert';
   const fileNP = document.getElementById('file-newpipe') as HTMLInputElement | null;
   const fileLT = document.getElementById('file-libretube') as HTMLInputElement | null;
-  const mergeBlock = document.getElementById('merge-controls') as HTMLDivElement | null;
-  const convertBlock = document.getElementById('convert-controls') as HTMLDivElement | null;
-  const sttBlock = document.getElementById('stt-controls') as HTMLDivElement | null;
+
+  const mergeBlock = document.getElementById('action-newpipe-libretube-merge') as HTMLDivElement | null;
+  const convertBlock = document.getElementById('action-newpipe-libretube-convert') as HTMLDivElement | null;
+  const sttBlock = document.getElementById('action-stt-uhabits-fill') as HTMLDivElement | null;
+
+	const globalOptions = document.getElementById("global-options") as HTMLDivElement | null;
   const mainFileArea = document.getElementById('main-file-area') as HTMLDivElement | null;
 
-  if (!fileNP || !fileLT || !mergeBlock || !convertBlock || !sttBlock || !mainFileArea) return;
+  if (!fileNP || !fileLT || !mergeBlock || !convertBlock || !sttBlock || !globalOptions || !mainFileArea) return;
 
-  if (mode === 'stt') {
-    // STT mode
-    mergeBlock.style.display = 'none';
-    convertBlock.style.display = 'none';
-    sttBlock.style.display = '';
-    mainFileArea.style.display = 'none';
-  } else if (mode === 'merge') {
-    mergeBlock.style.display = '';
-    convertBlock.style.display = 'none';
-    sttBlock.style.display = 'none';
-    mainFileArea.style.display = '';
-    fileNP.disabled = false;
-    fileLT.disabled = false;
-  } else {
-    mergeBlock.style.display = 'none';
-    convertBlock.style.display = '';
-    sttBlock.style.display = 'none';
-    mainFileArea.style.display = '';
-    // in convert mode, allow picking either file depending on action
-    fileNP.disabled = false;
-    fileLT.disabled = false;
-  }
+	for (const [id, allowedModes] of Object.entries(UIMap)) {
+		const elem = document.getElementById(id);
+		if (allowedModes.includes(mode)) {
+			elem.style.display = '';
+			if (id.startsWith("file")) (elem as HTMLInputElement).disabled = false;
+		} else {
+			elem.style.display = 'none';
+			if (id.startsWith("file")) (elem as HTMLInputElement).disabled = true;
+		}
+	}
 }
 
 export async function processBackup(direction: 'to_newpipe' | 'to_libretube') {

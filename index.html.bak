@@ -5,27 +5,31 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>npconv backup converter</title>
-	<link rel="stylesheet" href="style.css"> <!-- remove later-->
 	<!-- Bundled JS will include dependencies (jszip, sql.js) -->
 </head>
 
 <body>
-	<section class="container">
-		<h1>npconv backup converter</h1>
-		
+	<div class="container">
+		<h1>NewPipe ⇌ LibreTube Backup Converter</h1>
+
 		<div class="mode-selector">
 			<div class="mode-switch" role="tablist" aria-label="Mode selector">
 				<input type="radio" id="mode-merge" name="mode" value="merge" checked onchange="updateUI()">
-				<label for="mode-merge" class="mode-pill">NewPipe ⇌ LibreTube: Merge</label>
+				<label for="mode-merge" class="mode-pill">Merge</label>
 				<input type="radio" id="mode-convert" name="mode" value="convert" onchange="updateUI()">
-				<label for="mode-convert" class="mode-pill">NewPipe ⇌ LibreTube: Convert</label>
+				<label for="mode-convert" class="mode-pill">Convert</label>
 				<input type="radio" id="mode-stt" name="mode" value="stt" onchange="updateUI()">
-				<label for="mode-stt" class="mode-pill">SimpleTimeTracker ⇌ uHabits: Fill</label>
+				<label for="mode-stt" class="mode-pill">STT → uHabits</label>
 			</div>
 		</div>
 
-		<section id="action-newpipe-libretube-merge" class="controls-block">
-			<h3>NewPipe ⇌ LibreTube: Merge</h3>
+		<div class="global-option">
+			<label for="include-watch-history">Include watch history:</label>
+			<input type="checkbox" id="include-watch-history" checked />
+		</div>
+
+		<!-- Merge controls (visible when merge selected) -->
+		<div id="merge-controls" class="controls-block">
 			<div class="merge-options">
 				<label for="playlist-behavior">Playlists handling:</label>
 				<select id="playlist-behavior">
@@ -51,18 +55,19 @@
 			<div class="controls">
 				<button id="btn-merge">Merge</button>
 			</div>
-		</section>
+		</div>
 
-		<section id="action-newpipe-libretube-convert" class="controls-block" style="display:none;">
-			<h3>NewPipe ⇌ LibreTube: Convert</h3>
+		<!-- Convert controls (visible when convert selected) -->
+		<div id="convert-controls" class="controls-block" style="display:none;">
 			<div class="controls">
 				<button id="btn-to-newpipe" onclick="processBackup('to_newpipe')">Target: NewPipe</button>
 				<button id="btn-to-libretube" onclick="processBackup('to_libretube')">Target: LibreTube</button>
 			</div>
-		</section>
+		</div>
 
-		<section id="action-stt-uhabits-fill" class="controls-block" style="display:none;">
-			<h3>SimpleTimeTracker ⇌ uHabits: Fill</h3>
+		<!-- STT to uHabits controls (visible when stt mode selected) -->
+		<div id="stt-controls" class="controls-block" style="display:none;">
+			<h3>STT → uHabits Conversion</h3>
 			
 			<!-- File uploads -->
 			<div class="file-area">
@@ -110,14 +115,9 @@
 					Convert STT → uHabits
 				</button>
 			</div>
-		</section>
-
-		<div id="global-options">
-			<label for="include-watch-history">Include watch history:</label>
-			<input type="checkbox" id="include-watch-history" checked />
 		</div>
 
-		<section id="main-file-area" class="file-area">
+		<div class="file-area" id="main-file-area">
 			<div class="drop-zone" id="zone-newpipe" role="button" tabindex="0" aria-label="Select NewPipe backup">
 				<h4>NewPipe Backup (.zip)</h4>
 				<p><small class="hint">Contains newpipe.db<br>click/drop file to upload</small></p>
@@ -131,7 +131,7 @@
 				<input type="file" id="file-libretube" accept=".json">
 				<div class="file-name" aria-live="polite"></div>
 			</div>
-		</section>
+		</div>
 
 		<h3>Debug Log</h3>
 		<div id="debug-console">waiting for input...</div>
