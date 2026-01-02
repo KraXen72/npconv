@@ -148,11 +148,12 @@ function setupDropZones() {
   document.querySelectorAll('.drop-zone').forEach(zone => {
     const input = zone.querySelector('input[type="file"]') as HTMLInputElement | null;
     const nameEl = zone.querySelector('.file-name') as HTMLElement | null;
+    const clearBtn = zone.querySelector('.clear-file') as HTMLButtonElement | null;
     if (!input) return;
 
     // Click anywhere in zone to open file picker
     zone.addEventListener('click', (e) => {
-      if (e.target === input) return;
+      if (e.target === input || e.target === clearBtn) return;
       input.click();
     });
 
@@ -191,8 +192,40 @@ function setupDropZones() {
     // Reflect selected filename in UI
     input.addEventListener('change', () => {
       const f = input.files && input.files[0];
+      
+      // Validate file extension
+      if (f) {
+        const modeEl = document.querySelector('input[name="mode"]:checked') as HTMLInputElement | null;
+        const mode = modeEl ? modeEl.value : 'convert';
+        const allowedExts = input.getAttribute(`data-${mode}`);
+        
+        if (allowedExts) {
+          const exts = allowedExts.split(',').map(ext => ext.trim().toLowerCase());
+          const fileName = f.name.toLowerCase();
+          const isValid = exts.some(ext => fileName.endsWith(ext));
+          
+          if (!isValid) {
+            log(`Invalid file type. Expected: ${exts.join(', ')}`, 'err');
+            input.value = '';
+            if (nameEl) nameEl.textContent = '';
+            if (clearBtn) clearBtn.style.display = 'none';
+            return;
+          }
+        }
+      }
+      
       if (nameEl) nameEl.textContent = f ? f.name : '';
+      if (clearBtn) clearBtn.style.display = f ? 'flex' : 'none';
     });
+
+    // Clear button handler
+    if (clearBtn) {
+      clearBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        input.value = '';
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    }
   });
 }
 
