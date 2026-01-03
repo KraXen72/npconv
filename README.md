@@ -4,7 +4,7 @@ Convert between [newpipe](https://github.com/TeamNewPipe/NewPipe) and [libretube
 ## WIP
 The app is work-in-progress. All of the features may or may not work as expected.
 - [x] verify uhabits output for correcteness & test it in-app
-- [ ] merge uhabits branch into main
+- [x] merge uhabits branch into main
 - [ ] clean up UI to look less vibecoded
 - [ ] convert UI to solidjs
 - [ ] add screenshots to README & update it to reflect new app functionality
