@@ -436,6 +436,10 @@ async function performSttConversion(SQL: SqlJsStatic) {
 		// Get checkbox state for filling repetition notes
 		const fillNotesCheckbox = document.getElementById('fill-repetition-notes') as HTMLInputElement | null;
 		const fillRepetitionNotes = fillNotesCheckbox ? fillNotesCheckbox.checked : false;
+		
+		// Get checkbox state for copying STT comments
+		const copySttCommentsCheckbox = document.getElementById('copy-stt-comments') as HTMLInputElement | null;
+		const copySttComments = copySttCommentsCheckbox ? copySttCommentsCheckbox.checked : false;
 
 		log('Starting conversion...', 'info');
 
@@ -444,7 +448,8 @@ async function performSttConversion(SQL: SqlJsStatic) {
 			uhabitsFile,
 			mappings,
 			SQL,
-			fillRepetitionNotes
+			fillRepetitionNotes,
+			copySttComments
 		);
 
 		downloadFile(blob, 'uhabits_with_stt.backup', null);

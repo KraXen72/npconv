@@ -12,7 +12,8 @@ export async function convertSttToUHabits(
 	uhabitsFile: File,
 	mappings: ConversionMapping[],
 	SQL: SqlJsStatic,
-	fillRepetitionNotes: boolean = false
+	fillRepetitionNotes: boolean = false,
+	copySttComments: boolean = false
 ): Promise<Blob> {
 	log('Starting STT → uHabits conversion', 'info');
 	
@@ -71,10 +72,19 @@ export async function convertSttToUHabits(
 			);
 			const totalMinutes = Math.round(totalDurationMs / 60000);
 			
-			// Insert new repetition (value=2 means checked)
-			const notes = fillRepetitionNotes
-				? `Converted from STT: ${dayRecords.length} session${dayRecords.length > 1 ? 's' : ''}, ${totalMinutes}min total`
-				: '';
+			// Build notes: fill with conversion info OR copy STT comments (if enabled and present)
+			let notes = '';
+			if (fillRepetitionNotes) {
+				notes = `Converted from STT: ${dayRecords.length} session${dayRecords.length > 1 ? 's' : ''}, ${totalMinutes}min total`;
+			} else if (copySttComments) {
+				// Collect unique comments from records of this day
+				const comments = dayRecords
+					.map(r => r.comment)
+					.filter((c): c is string => !!c && c.trim().length > 0);
+				if (comments.length > 0) {
+					notes = [...new Set(comments)].join('; ');
+				}
+			}
 			
 			db.run(`
 				INSERT INTO Repetitions (habit, timestamp, value, notes)
