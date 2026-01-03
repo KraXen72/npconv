@@ -452,8 +452,9 @@ button:active:not(:disabled) {
 	gap: 12px;
 	margin-bottom: 10px;
 }
+
 .remove-mapping {
-	justify-self: end;
+	margin-left: auto;
 }
 
 .stt-activity-select,

@@ -10,10 +10,10 @@ export const ConvertControls: Component<Props> = (props) => {
       <h3>NewPipe ⇌ LibreTube: Convert</h3>
       
       <div class="controls">
-        <button id="btn-to-newpipe" onClick={() => props.onConvert('to_newpipe')}>
+        <button id="btn-to-newpipe" type="button" onClick={() => props.onConvert('to_newpipe')}>
           Target: NewPipe
         </button>
-        <button id="btn-to-libretube" onClick={() => props.onConvert('to_libretube')}>
+        <button id="btn-to-libretube" type="button" onClick={() => props.onConvert('to_libretube')}>
           Target: LibreTube
         </button>
       </div>

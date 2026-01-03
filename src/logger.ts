@@ -1,4 +1,5 @@
 import { createSignal } from 'solid-js';
+import { escapeHtml } from './utils';
 
 // Store for reactive log output
 function createLogStore() {
@@ -13,7 +14,8 @@ function createLogStore() {
         : type === 'schema' ? 'log-schema' 
         : 'log-info';
       
-      const line = `<div class="${className}">[${timestamp}] ${msg}</div>`;
+      const escapedMsg = escapeHtml(msg);
+      const line = `<div class="${className}">[${timestamp}] ${escapedMsg}</div>`;
       setLogs(prev => prev + line);
     }
   };

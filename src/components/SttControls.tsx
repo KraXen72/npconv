@@ -1,34 +1,70 @@
-import { createSignal, For, type Component } from 'solid-js';
+import { createSignal, For, onMount, onCleanup, createEffect, type Component } from 'solid-js';
 import { MappingItem } from './MappingItem';
 import type { SttStore } from '../stores/sttStore';
+import type { ConversionMapping } from '../types/uhabits';
 
 interface Props {
   disabled: boolean;
   sttStore: SttStore;
   onConvert: () => void;
+  onMappingsChange: (mappings: ConversionMapping[]) => void;
 }
 
 interface MappingRef {
   id: number;
-  ref: any;
+}
+
+interface MappingItemApi {
+  getMapping: () => ConversionMapping | null;
 }
 
 export const SttControls: Component<Props> = (props) => {
   const [mappings, setMappings] = createSignal<MappingRef[]>([]);
   const [nextId, setNextId] = createSignal(0);
+  const mappingRefs = new Map<number, MappingItemApi>();
 
   // Add initial mapping
-  setTimeout(() => addMapping(), 0);
+  onMount(() => {
+    const timerId = setTimeout(() => addMapping(), 0);
+    onCleanup(() => clearTimeout(timerId));
+  });
 
   const addMapping = () => {
     const id = nextId();
     setNextId(id + 1);
-    setMappings([...mappings(), { id, ref: null }]);
+    setMappings([...mappings(), { id }]);
   };
 
   const removeMapping = (id: number) => {
+    mappingRefs.delete(id);
     setMappings(mappings().filter(m => m.id !== id));
   };
+
+  // Collect current mappings from refs and emit to parent
+  const collectMappings = () => {
+    const result: ConversionMapping[] = [];
+    for (const mapping of mappings()) {
+      const api = mappingRefs.get(mapping.id);
+      const data = api?.getMapping?.();
+      if (data) {
+        result.push(data);
+      }
+    }
+    return result;
+  };
+
+  // Emit mappings whenever they might have changed
+  createEffect(() => {
+    // Track all dependencies that could affect mappings
+    mappings();
+    props.sttStore.sttData();
+    props.sttStore.uhabitsData();
+    
+    // Small delay to ensure refs are populated after render
+    setTimeout(() => {
+      props.onMappingsChange(collectMappings());
+    }, 0);
+  });
 
   const canConvert = () => {
     return props.sttStore.sttData() && props.sttStore.uhabitsData() &&
@@ -46,7 +82,7 @@ export const SttControls: Component<Props> = (props) => {
           <For each={mappings()}>
             {(mapping) => (
               <MappingItem
-                ref={(el: any) => (mapping.ref = el)}
+                ref={(api: any) => mappingRefs.set(mapping.id, api)}
                 mappingId={mapping.id}
                 sttData={props.sttStore.sttData()}
                 uhabitsData={props.sttStore.uhabitsData()}

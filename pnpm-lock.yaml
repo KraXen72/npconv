@@ -14,6 +14,9 @@ importers:
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
+      solid-js:
+        specifier: ^1.9.10
+        version: 1.9.10
       sql.js:
         specifier: ^1.13.0
         version: 1.13.0
@@ -27,9 +30,6 @@ importers:
       babel-preset-solid:
         specifier: ^1.9.10
         version: 1.9.10(@babel/core@7.28.5)(solid-js@1.9.10)
-      solid-js:
-        specifier: ^1.9.10
-        version: 1.9.10
       typescript:
         specifier: ^5.0.0
         version: 5.9.3

@@ -31,6 +31,7 @@ export const FileZone: Component<Props> = (props) => {
     if (prevModeType !== currentModeType) {
       if (fileInputRef) fileInputRef.value = '';
       setFileName('');
+      props.onFileChange(null);
     }
     
     prevModeType = currentModeType;
@@ -92,7 +93,8 @@ export const FileZone: Component<Props> = (props) => {
             fileInputRef.files = dt.files;
             handleFileChange(dt.files);
           } catch (err) {
-            console.warn('Could not set input.files programmatically', err);
+            const errorMsg = err instanceof Error ? err.message : String(err);
+            log(`Could not set input.files programmatically: ${errorMsg}`, 'err');
           }
         }
       }}

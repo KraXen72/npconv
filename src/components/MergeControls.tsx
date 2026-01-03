@@ -59,7 +59,7 @@ export const MergeControls: Component<Props> = (props) => {
       </div>
 
       <div class="controls">
-        <button id="btn-merge" onClick={handleMerge}>
+        <button id="btn-merge" type="button" onClick={handleMerge}>
           Merge
         </button>
       </div>

@@ -1,4 +1,18 @@
 // Utility helpers
+
+// HTML escape function to prevent XSS
+export function escapeHtml(text: string): string {
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+    '/': '&#x2F;'
+  };
+  return text.replace(/[&<>"'/]/g, (char) => map[char]);
+}
+
 export function getTimestamp(): string {
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');

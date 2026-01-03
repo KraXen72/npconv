@@ -1,4 +1,4 @@
-import { createSignal, createEffect, createMemo, type Component, type JSX, Show, For } from 'solid-js';
+import { createSignal, createEffect, createMemo, onMount, onCleanup, type Component, type JSX, Show, For } from 'solid-js';
 import type { ParsedSttBackup, SttRecord } from '../types/stt';
 import type { ParsedUHabitsBackup } from '../types/uhabits';
 
@@ -10,11 +10,19 @@ declare module "solid-js" {
   }
 }
 
+interface MappingResult {
+  sttTypeId: number;
+  uhabitsHabitId: number;
+  minDuration: number;
+  copySttComments: boolean;
+}
+
 interface Props {
   mappingId: number;
   sttData: ParsedSttBackup | null;
   uhabitsData: ParsedUHabitsBackup | null;
   onRemove: () => void;
+  ref?: (api: { getMapping: () => MappingResult | null }) => void;
 }
 
 export const MappingItem: Component<Props> = (props) => {
@@ -134,7 +142,7 @@ export const MappingItem: Component<Props> = (props) => {
   };
 
   // Expose data for parent to access
-  const getMapping = () => {
+  const getMapping = (): MappingResult | null => {
     const sttId = parseInt(sttTypeId());
     const uhabitsId = parseInt(uhabitsHabitId());
     if (!sttId || !uhabitsId) return null;
@@ -146,19 +154,25 @@ export const MappingItem: Component<Props> = (props) => {
     };
   };
 
-  // Expose for parent
-  (props as any).getMapping = getMapping;
+  // Expose API to parent via ref callback
+  onMount(() => {
+    props.ref?.({ getMapping });
+  });
 
-  const sttOptions = () => {
+  onCleanup(() => {
+    props.ref?.(null as any);
+  });
+
+  const sttOptions = createMemo(() => {
     if (!props.sttData) return [];
     const options: Array<{ id: number; type: any }> = [];
     props.sttData.recordTypes.forEach((type: any, id: number) => {
       options.push({ id, type });
     });
     return options;
-  };
+  });
 
-  const uhabitsOptions = () => {
+  const uhabitsOptions = createMemo(() => {
     if (!props.uhabitsData) return { active: [], archived: [] };
     const activeHabits: Array<{ id: number; habit: any }> = [];
     const archivedHabits: Array<{ id: number; habit: any }> = [];
@@ -172,7 +186,7 @@ export const MappingItem: Component<Props> = (props) => {
     });
 
     return { active: activeHabits, archived: archivedHabits };
-  };
+  });
 
   return (
     <div class="mapping-item" data-mapping-id={props.mappingId}>

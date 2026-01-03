@@ -18,7 +18,6 @@
     "@types/jszip": "^3.4.1",
     "@types/sql.js": "^1.4.9",
     "babel-preset-solid": "^1.9.10",
-    "solid-js": "^1.9.10",
     "typescript": "^5.0.0",
     "vite": "^5.0.0",
     "vite-plugin-solid": "^2.11.10"
@@ -26,6 +25,7 @@
   "dependencies": {
     "activity-grid": "^1.1.1",
     "jszip": "^3.10.1",
+    "solid-js": "^1.9.10",
     "sql.js": "^1.13.0"
   }
 }

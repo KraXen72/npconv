@@ -11,6 +11,8 @@ export function createSttStore(SQL: SqlJsStatic) {
   const [uhabitsData, setUhabitsData] = createSignal<ParsedUHabitsBackup | null>(null);
   const [sttFile, setSttFile] = createSignal<File | null>(null);
   const [uhabitsFile, setUhabitsFile] = createSignal<File | null>(null);
+  
+  let currentOperationId = 0;
 
   const loadSttFile = async (file: File) => {
     try {
@@ -19,8 +21,9 @@ export function createSttStore(SQL: SqlJsStatic) {
       setSttFile(file);
       log(`Loaded ${data.recordTypes.size} STT activity types`, 'info');
       return true;
-    } catch (error: any) {
-      log(`Error loading STT file: ${error.message}`, 'err');
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Error loading STT file: ${errorMsg}`, 'err');
       setSttData(null);
       setSttFile(null);
       return false;
@@ -28,22 +31,52 @@ export function createSttStore(SQL: SqlJsStatic) {
   };
 
   const loadUHabitsFile = async (file: File) => {
+    // Generate unique operation ID to detect races
+    const operationId = ++currentOperationId;
+    
+    // Capture previous DB to close after successful replacement
+    const prevData = uhabitsData();
+    const prevDb = prevData?.db;
+    
+    let newData: ParsedUHabitsBackup | null = null;
+    
     try {
-      // Close previous database if exists
-      const prevData = uhabitsData();
-      if (prevData?.db) prevData.db.close();
-
-      const data = await parseUHabitsBackup(file, SQL);
-      setUhabitsData(data);
+      newData = await parseUHabitsBackup(file, SQL);
+      
+      // Check if this operation is still the latest
+      if (operationId !== currentOperationId) {
+        // Another operation started, close our DB and abort
+        if (newData?.db) newData.db.close();
+        return false;
+      }
+      
+      // Safe to update state - we're still the latest operation
+      setUhabitsData(newData);
       setUhabitsFile(file);
-      log(`Loaded ${data.allHabits.size} habits (${data.booleanHabits.size} boolean)`, 'info');
+      
+      // Close previous DB only after successful state update
+      if (prevDb) prevDb.close();
+      
+      log(`Loaded ${newData.allHabits.size} habits (${newData.booleanHabits.size} boolean)`, 'info');
       return true;
-    } catch (error: any) {
-      log(`Error loading uHabits file: ${error.message}`, 'err');
-      const prevData = uhabitsData();
-      if (prevData?.db) prevData.db.close();
-      setUhabitsData(null);
-      setUhabitsFile(null);
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Error loading uHabits file: ${errorMsg}`, 'err');
+      
+      // On error, close only the DB we created (if any)
+      if (newData?.db) newData.db.close();
+      
+      // Only clear state if we're still the latest operation
+      if (operationId === currentOperationId) {
+        // Close the currently stored DB if it matches what we captured
+        const currentData = uhabitsData();
+        if (currentData?.db === prevDb) {
+          prevDb?.close();
+        }
+        setUhabitsData(null);
+        setUhabitsFile(null);
+      }
+      
       return false;
     }
   };

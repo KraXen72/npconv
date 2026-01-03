@@ -24,6 +24,7 @@ export const App: Component<Props> = (props) => {
   const [rightFile, setRightFile] = createSignal<File | null>(null);
   const [includeWatchHistory, setIncludeWatchHistory] = createSignal(true);
   const [processing, setProcessing] = createSignal(false);
+  const [sttMappings, setSttMappings] = createSignal<ConversionMapping[]>([]);
 
   // Create STT store
   const sttStore = createSttStore(props.SQL);
@@ -87,14 +88,28 @@ export const App: Component<Props> = (props) => {
   const handleLeftFileChange = async (file: File | null) => {
     setLeftFile(file);
     if (mode() === 'stt' && file) {
-      await sttStore.loadSttFile(file);
+      try {
+        await sttStore.loadSttFile(file);
+      } catch (error: unknown) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error('Failed to load STT file:', errorMsg);
+        log(`Failed to load STT file: ${errorMsg}`, 'err');
+        setLeftFile(null);
+      }
     }
   };
 
   const handleRightFileChange = async (file: File | null) => {
     setRightFile(file);
     if (mode() === 'stt' && file) {
-      await sttStore.loadUHabitsFile(file);
+      try {
+        await sttStore.loadUHabitsFile(file);
+      } catch (error: unknown) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error('Failed to load uHabits file:', errorMsg);
+        log(`Failed to load uHabits file: ${errorMsg}`, 'err');
+        setRightFile(null);
+      }
     }
   };
 
@@ -137,32 +152,7 @@ export const App: Component<Props> = (props) => {
       return;
     }
 
-    // Gather mappings from the SttControls component
-    const mappingList = document.getElementById('mapping-list');
-    if (!mappingList) {
-      log('No mapping list found', 'err');
-      return;
-    }
-
-    const mappings: ConversionMapping[] = [];
-    const mappingItems = mappingList.querySelectorAll('.mapping-item');
-
-    for (let i = 0; i < mappingItems.length; i++) {
-      const item = mappingItems[i];
-      const sttSelect = item.querySelector('.stt-activity-select') as HTMLSelectElement;
-      const uhabitsSelect = item.querySelector('.uhabits-habit-select') as HTMLSelectElement;
-      const minDurationInput = item.querySelector('.min-duration-input') as HTMLInputElement;
-      const copySttCommentsCheckbox = item.querySelector('.copy-stt-comments-checkbox') as HTMLInputElement;
-
-      const sttTypeId = parseInt(sttSelect.value);
-      const uhabitsHabitId = parseInt(uhabitsSelect.value);
-      const minDuration = minDurationInput ? parseInt(minDurationInput.value) || 0 : 0;
-      const copySttComments = copySttCommentsCheckbox ? copySttCommentsCheckbox.checked : false;
-
-      if (sttTypeId && uhabitsHabitId) {
-        mappings.push({ sttTypeId, uhabitsHabitId, minDuration, copySttComments });
-      }
-    }
+    const mappings = sttMappings();
 
     if (mappings.length === 0) {
       log('No valid mappings configured', 'err');
@@ -205,7 +195,12 @@ export const App: Component<Props> = (props) => {
       </Show>
 
       <Show when={mode() === 'stt'}>
-        <SttControls disabled={processing()} sttStore={sttStore} onConvert={handleSttConvert} />
+        <SttControls 
+          disabled={processing()} 
+          sttStore={sttStore} 
+          onConvert={handleSttConvert}
+          onMappingsChange={setSttMappings}
+        />
       </Show>
 
       <Show when={isNewPipeMode()}>
