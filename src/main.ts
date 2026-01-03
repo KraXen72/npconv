@@ -21,10 +21,16 @@ window.onload = async () => {
     log("SQL.js ready.");
   } catch (e: any) {
     log("Error loading SQL.js: " + (e.message || e.toString()), "err");
+    return;
+  }
+  
+  try {
+    setupSttHandlers(SQL);
+  } catch (e: any) {
+    log("Error initializing STT handlers: " + (e.message || e.toString()), "err");
   }
   updateUI();
   setupDropZones();
-  setupSttHandlers(SQL);
 };
 
 const UIMap: Record<string, string[]> = {
@@ -117,7 +123,8 @@ export async function processBackup(direction: 'to_newpipe' | 'to_libretube') {
     if (direction === 'to_newpipe') {
       await convertToNewPipe(npFile, ltFile as File, mode, SQL, playlistBehavior);
     } else {
-      await convertToLibreTube(npFile, ltFile, mode, SQL, playlistBehavior, includeWatchHistory);
+      // npFile is guaranteed to exist by validation above
+      await convertToLibreTube(npFile as File, ltFile, mode, SQL, playlistBehavior, includeWatchHistory);
     }
   } catch (e: any) {
     log(`FATAL ERROR: ${e.message || e.toString() || 'An unknown error occurred'}`, "err");

@@ -141,14 +141,26 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 			for (const lp of localPlaylists) {
 				const plName = lp.playlist.name || "Untitled";
 				try {
-					const tempRes = db.exec(`SELECT uid FROM playlists WHERE name = '${plName.replace(/'/g, "''")}'`);
-					if (tempRes.length > 0) {
+				const tempStmt = db.prepare("SELECT uid FROM playlists WHERE name = ?");
+				tempStmt.bind([plName]);
+				const tempRes: any[] = [];
+				while (tempStmt.step()) {
+					tempRes.push(tempStmt.getAsObject());
+				}
+				tempStmt.free();
+				if (tempRes.length > 0) {
+					const existingId = tempRes[0].uid;
 						// Duplicate exists in target: respect precedence
 						if (pb === 'merge_lt_precedence') {
-							const existingId = tempRes[0].values[0][0];
-							try {
-								db.run(`DELETE FROM playlist_stream_join WHERE playlist_id = ${existingId}`);
-								db.run(`DELETE FROM playlists WHERE uid = ${existingId}`);
+						try {
+							const deleteJoinStmt = db.prepare("DELETE FROM playlist_stream_join WHERE playlist_id = ?");
+							deleteJoinStmt.bind([existingId]);
+							deleteJoinStmt.step();
+							deleteJoinStmt.free();
+							const deletePlaylistStmt = db.prepare("DELETE FROM playlists WHERE uid = ?");
+							deletePlaylistStmt.bind([existingId]);
+							deletePlaylistStmt.step();
+							deletePlaylistStmt.free();
 								log(`Replaced existing local playlist: ${plName}`, "schema");
 							} catch (e: any) {
 								log(`WARN: failed to replace playlist ${plName}: ${e.message || e.toString()}`, "warn");
@@ -188,15 +200,23 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 								uploadDateTs,
 								thumbnailUrl
 							]);
-							const streamIdRes = db.exec(`SELECT uid FROM streams WHERE service_id=${SERVICE_ID_YOUTUBE} AND url='${vidUrl.replace(/'/g, "''")}'`);
-							if (streamIdRes.length > 0 && streamIdRes[0].values.length > 0) {
-								const streamId = streamIdRes[0].values[0][0];
+							const streamSelectStmt = db.prepare("SELECT uid FROM streams WHERE service_id = ? AND url = ?");
+							streamSelectStmt.bind([SERVICE_ID_YOUTUBE, vidUrl]);
+							let streamId = null;
+							if (streamSelectStmt.step()) {
+								streamId = streamSelectStmt.getAsObject().uid;
+							}
+							streamSelectStmt.free();
+							if (streamId !== null) {
 								const currentIndex = joinIndex;
 								joinInsert.run([plId, streamId, joinIndex++]);
 								// if this is the first video in the playlist, set it as the thumbnail_stream_id
 								if (currentIndex === 0) {
 									try {
-										db.run(`UPDATE playlists SET thumbnail_stream_id = ${streamId} WHERE uid = ${plId}`);
+										const updateThumbStmt = db.prepare("UPDATE playlists SET thumbnail_stream_id = ? WHERE uid = ?");
+										updateThumbStmt.bind([streamId, plId]);
+										updateThumbStmt.step();
+										updateThumbStmt.free();
 									} catch (e: any) {
 										log(`WARN: failed to set playlist thumbnail for ${plName}: ${e.message || e.toString()}`, 'warn');
 									}
@@ -228,9 +248,9 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 	try {
 		log("Processing Remote Playlist Bookmarks...");
 		let rplCount = 0;
-		const stmt = db.prepare("INSERT INTO remote_playlists (service_id, name, url, thumbnail_url, uploader, display_index, stream_count) VALUES (?, ?, ?, ?, ?, ?, ?)");
 
 		if (ltData.playlistBookmarks && !skipPlaylistImport) {
+			const stmt = db.prepare("INSERT INTO remote_playlists (service_id, name, url, thumbnail_url, uploader, display_index, stream_count) VALUES (?, ?, ?, ?, ?, ?, ?)");
 			const bookmarks: LibreTubePlaylistBookmark[] = ltData.playlistBookmarks;
 			for (const rb of bookmarks) {
 				try {
@@ -247,15 +267,24 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 
 					// handle duplicate remote playlists according to precedence
 					try {
-						const existing = db.exec(`SELECT uid FROM remote_playlists WHERE url = '${url.replace(/'/g, "''")}' OR name = '${playlistName.replace(/'/g, "''")}'`);
-						if (existing && existing.length > 0 && existing[0].values.length > 0) {
+						const existingStmt = db.prepare("SELECT uid FROM remote_playlists WHERE url = ? OR name = ?");
+						existingStmt.bind([url, playlistName]);
+						const existingResults: any[] = [];
+						while (existingStmt.step()) {
+							existingResults.push(existingStmt.getAsObject());
+						}
+						existingStmt.free();
+						if (existingResults.length > 0) {
+							const existingId = existingResults[0].uid;
 							if (pb === 'merge_np_precedence') {
 								// NewPipe precedence: keep existing remote playlist, skip importing this one
 								continue;
 							} else if (pb === 'merge_lt_precedence') {
 								// LibreTube precedence: remove existing and replace
-								const existingId = existing[0].values[0][0];
-								db.run(`DELETE FROM remote_playlists WHERE uid = ${existingId}`);
+							const deleteRemoteStmt = db.prepare("DELETE FROM remote_playlists WHERE uid = ?");
+							deleteRemoteStmt.bind([existingId]);
+							deleteRemoteStmt.step();
+							deleteRemoteStmt.free();
 							}
 						}
 					} catch {
@@ -364,9 +393,14 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 						thumbnailUrl
 					]);
 
-					const streamIdRes = db.exec(`SELECT uid FROM streams WHERE service_id=${SERVICE_ID_YOUTUBE} AND url='${vidUrl.replace(/'/g, "''")}'`);
-					if (streamIdRes.length > 0 && streamIdRes[0].values.length > 0) {
-						const streamId = streamIdRes[0].values[0][0];
+					const streamLookupStmt = db.prepare("SELECT uid FROM streams WHERE service_id = ? AND url = ?");
+					streamLookupStmt.bind([SERVICE_ID_YOUTUBE, vidUrl]);
+					let streamId = null;
+					if (streamLookupStmt.step()) {
+						streamId = streamLookupStmt.getAsObject().uid;
+					}
+					streamLookupStmt.free();
+					if (streamId !== null) {
 
 						// stream_state: store latest progress (insert/replace)
 						try {
@@ -380,13 +414,22 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 							if (mode === 'merge') {
 								const low = accessDateMs - 1000;
 								const high = accessDateMs + 1000;
-								const existing = db.exec(`SELECT access_date, repeat_count FROM stream_history WHERE stream_id = ${streamId} AND access_date BETWEEN ${low} AND ${high}`);
-								if (existing && existing.length > 0 && existing[0].values.length > 0) {
-									// merge into first matched entry
-									const existingDate = Number(existing[0].values[0][0]);
-									const existingRepeat = Number(existing[0].values[0][1]) || 0;
-									const combined = existingRepeat + repeatCount;
-									db.run(`UPDATE stream_history SET repeat_count = ${combined} WHERE stream_id = ${streamId} AND access_date = ${existingDate}`);
+							const selectHistStmt = db.prepare("SELECT access_date, repeat_count FROM stream_history WHERE stream_id = ? AND access_date BETWEEN ? AND ?");
+							selectHistStmt.bind([streamId, low, high]);
+							const existingHist: any[] = [];
+							while (selectHistStmt.step()) {
+								existingHist.push(selectHistStmt.getAsObject());
+							}
+							selectHistStmt.free();
+							if (existingHist.length > 0) {
+								// merge into first matched entry
+								const existingDate = Number(existingHist[0].access_date);
+								const existingRepeat = Number(existingHist[0].repeat_count) || 0;
+								const combined = existingRepeat + repeatCount;
+								const updateHistStmt = db.prepare("UPDATE stream_history SET repeat_count = ? WHERE stream_id = ? AND access_date = ?");
+								updateHistStmt.bind([combined, streamId, existingDate]);
+								updateHistStmt.step();
+								updateHistStmt.free();
 									duplicateCount++;
 								} else {
 									historyInsert.run([streamId, accessDateMs, repeatCount]);
@@ -414,7 +457,8 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 
 		log(`Processed ${histCount} history items (added: ${addedCount}, duplicates merged: ${duplicateCount}).`);
 	} catch (e: any) {
-		log(`Error processing history: ${e.message}`, "err");
+		log(`FATAL ERROR during History phase: ${e.message || e.toString()}`, "err");
+		throw e;
 	}
 
 	// --- Room Master Table ---
@@ -437,6 +481,7 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 	// 4. Export
 	log("Exporting database...");
 	const data = db.export();
+	db.close();
 	zip.file("newpipe.db", data);
 
 	if (existingPreferences) {

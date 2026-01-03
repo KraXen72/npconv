@@ -26,25 +26,42 @@ export async function parseUHabitsBackup(file: File, SQL: SqlJsStatic): Promise<
 		
 		if (habitsQuery.length > 0) {
 			for (const row of habitsQuery[0].values) {
+				// Validate row has expected number of columns
+				if (row.length < 18) {
+					log(`Skipping malformed habit row with ${row.length} columns`, 'warn');
+					continue;
+				}
+				
+				// Parse and validate required fields
+				const id = Number(row[0]);
+				const name = String(row[7] ?? '');
+				const question = String(row[16] ?? '');
+				const type = Number(row[12]);
+				
+				if (!Number.isFinite(id) || !name) {
+					log(`Skipping habit with invalid id or name`, 'warn');
+					continue;
+				}
+				
 				const habit: UHabitsHabit = {
-					id: row[0] as number,
-					archived: row[1] as number,
-					color: row[2] as number,
-					description: row[3] as string | undefined,
-					freq_den: row[4] as number,
-					freq_num: row[5] as number,
-					highlight: row[6] as number,
-					name: row[7] as string,
-					position: row[8] as number,
-					reminder_hour: row[9] as number,
-					reminder_min: row[10] as number,
-					reminder_days: row[11] as number,
-					type: row[12] as number,
-					target_type: row[13] as number,
-					target_value: row[14] as number,
-					unit: row[15] as string,
-					question: row[16] as string,
-					uuid: row[17] as string | undefined
+					id,
+					archived: Number(row[1]),
+					color: Number(row[2]),
+					description: row[3] !== null ? String(row[3]) : undefined,
+					freq_den: Number(row[4]),
+					freq_num: Number(row[5]),
+					highlight: Number(row[6]),
+					name,
+					position: Number(row[8]),
+					reminder_hour: Number(row[9]),
+					reminder_min: Number(row[10]),
+					reminder_days: Number(row[11]),
+					type,
+					target_type: Number(row[13]),
+					target_value: Number(row[14]),
+					unit: String(row[15] ?? ''),
+					question,
+					uuid: row[17] !== null ? String(row[17]) : undefined
 				};
 				allHabits.set(habit.id, habit);
 				if (habit.type === 0) booleanHabits.set(habit.id, habit);
@@ -57,12 +74,28 @@ export async function parseUHabitsBackup(file: File, SQL: SqlJsStatic): Promise<
 		
 		if (repsQuery.length > 0) {
 			for (const row of repsQuery[0].values) {
+				// Validate row has expected number of columns
+				if (row.length < 5) {
+					log(`Skipping malformed repetition row with ${row.length} columns`, 'warn');
+					continue;
+				}
+				
+				const id = Number(row[0]);
+				const habit_id = Number(row[1]);
+				const timestamp = Number(row[2]);
+				const value = Number(row[3]);
+				
+				if (!Number.isFinite(id) || !Number.isFinite(habit_id) || !Number.isFinite(timestamp)) {
+					log(`Skipping repetition with invalid id/habit_id/timestamp`, 'warn');
+					continue;
+				}
+				
 				repetitions.push({
-					id: row[0] as number,
-					habit_id: row[1] as number,
-					timestamp: row[2] as number,
-					value: row[3] as number,
-					notes: row[4] as string | undefined
+					id,
+					habit_id,
+					timestamp,
+					value,
+					notes: row[4] !== null ? String(row[4]) : undefined
 				});
 			}
 			log(`Loaded ${repetitions.length} repetitions`, 'info');

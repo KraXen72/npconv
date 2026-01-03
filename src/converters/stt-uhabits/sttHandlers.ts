@@ -50,7 +50,9 @@ export function setupSttHandlers(SQL: SqlJsStatic) {
 			updateSummary();
 			updateConvertButton();
 		} catch (error: any) {
-			log(`Error loading uHabits file: ${error.message}`, 'err');		if (uhabitsData?.db) uhabitsData.db.close();			uhabitsData = null;
+			log(`Error loading uHabits file: ${error.message}`, 'err');
+			if (uhabitsData?.db) uhabitsData.db.close();
+			uhabitsData = null;
 		}
 	});
 
@@ -370,15 +372,30 @@ function updateSummary() {
 		}
 	}
 
+	// create summary
 	if (validMappings > 0) {
 		summaryBox.style.display = 'block';
-		summaryBox.innerHTML = `
-			<h4>Conversion Summary</h4>
-			<ul>
-				<li>${totalNewDays} new repetitions will be added</li>
-				${mappingDetails.map(d => `<li>${d}</li>`).join('')}
-			</ul>
-		`;
+		summaryBox.textContent = '';
+		
+		const heading = document.createElement('h4');
+		heading.textContent = 'Conversion Summary';
+		summaryBox.appendChild(heading);
+		
+		const fragment = document.createDocumentFragment();
+		const ul = document.createElement('ul');
+		
+		const totalLi = document.createElement('li');
+		totalLi.textContent = `${totalNewDays} new repetitions will be added`;
+		ul.appendChild(totalLi);
+		
+		for (const detail of mappingDetails) {
+			const li = document.createElement('li');
+			li.textContent = detail;
+			ul.appendChild(li);
+		}
+		
+		fragment.appendChild(ul);
+		summaryBox.appendChild(fragment);
 	} else {
 		summaryBox.style.display = 'none';
 	}
