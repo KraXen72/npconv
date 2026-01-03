@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      activity-grid:
+        specifier: ^1.1.1
+        version: 1.1.1
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
@@ -453,6 +456,10 @@ packages:
   '@types/sql.js@1.4.9':
     resolution: {integrity: sha512-ep8b36RKHlgWPqjNG9ToUrPiwkhwh0AEzy883mO5Xnd+cL6VBH1EvSjBAAuxLUFF2Vn/moE3Me6v9E1Lo+48GQ==}
 
+  activity-grid@1.1.1:
+    resolution: {integrity: sha512-1FuKPyg8CumBvfGqiSc7dGw3K9X8Pq6EU+nY/c91KhtUZtR9USI5DCBP2tO8La6LPXNMfSZutxnwrI39pJI0Bw==}
+    engines: {node: '>=14.0.0'}
+
   core-util-is@1.0.3:
     resolution: {integrity: sha512-ZQBvi1DcpJ4GDqanjucZ2Hj3wEO5pZDS89BWbkcrvdxksJorwUDDZamX9ldFkp9aw2lmBDLgkObEA4DWNJ9FYQ==}
 
@@ -801,6 +808,8 @@ snapshots:
     dependencies:
       '@types/emscripten': 1.41.5
       '@types/node': 25.0.2
+
+  activity-grid@1.1.1: {}
 
   core-util-is@1.0.3: {}
 

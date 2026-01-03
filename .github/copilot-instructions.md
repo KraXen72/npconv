@@ -2,7 +2,7 @@
 applyTo: "**"
 ---
 
-# AI Coding Assistant Instructions (repo-adapted)
+# AI Coding Assistant Instructions
 
 ## General
 - ALWAYS avoid exaggerated reassurances like "You're absolutely right!" or "I understand the issue!".

@@ -1,11 +1,12 @@
 import JSZip from 'jszip';
 import type { SqlJsStatic } from 'sql.js';
-import { SERVICE_ID_YOUTUBE } from '../constants';
-import { log } from '../logger';
-import type { LibreTubeBackup, LibreTubeHistoryItem, LibreTubeLocalPlaylist, LibreTubePlaylistBookmark, LibreTubeVideo } from '../types/libretube';
-import { clampToSafeInt, downloadFile, extractVideoIdFromUrl, formatUploadDate, getTimestamp, parseAccessDateToMs } from '../utils';
+import { SERVICE_ID_YOUTUBE } from '../../constants';
+import { log } from '../../logger';
+import { collectStreamStateDebug } from '../../sqlHelper';
+import type { LibreTubeBackup, LibreTubeHistoryItem, LibreTubeLocalPlaylist, LibreTubePlaylistBookmark, LibreTubeVideo } from '../../types/libretube';
+import { clampToSafeInt, downloadFile, extractVideoIdFromUrl, formatUploadDate, getTimestamp, parseAccessDateToMs } from '../../utils';
 
-export async function convertToLibreTube(npFile: File | undefined, ltFile: File | undefined, mode: string, SQL: SqlJsStatic, playlistBehavior?: string, includeWatchHistoryParam?: boolean) {
+export async function convertToLibreTube(npFile: File, ltFile: File | undefined, mode: string, SQL: SqlJsStatic, playlistBehavior?: string, includeWatchHistoryParam?: boolean) {
 	log("Starting conversion to LibreTube format...");
 
 	let targetData: LibreTubeBackup = {
@@ -60,12 +61,12 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
 			targetData.subscriptions = targetData.subscriptions || [];
 			targetData.playlistBookmarks = targetData.playlistBookmarks || [];
 			targetData.localPlaylists = targetData.localPlaylists || [];
-			log(`Merging playlists with behavior: ${pb || 'default (NewPipe precedence)'}`);
+			log(`Merging playlists with behavior: ${pb || 'default (LibreTube precedence)'}`);
 		}
 	}
 
 	log("Reading NewPipe backup...");
-	const npData = await npFile!.arrayBuffer();
+	const npData = await npFile.arrayBuffer();
 	const npZip = await JSZip.loadAsync(npData as any);
 	const dbFile = npZip.file("newpipe.db");
 	if (!dbFile) throw new Error("NewPipe ZIP must contain newpipe.db");
@@ -74,23 +75,14 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
 	log("NewPipe database loaded.");
 
 	try {
-		let streamStateDebugInput = '';
-		const ti = db.exec("PRAGMA table_info('stream_state')") || [];
-		const fk = db.exec("PRAGMA foreign_key_list('stream_state')") || [];
-		const create = db.exec("SELECT sql FROM sqlite_master WHERE type='table' AND name='stream_state'") || [];
-		streamStateDebugInput += 'PRAGMA table_info("stream_state"):\n';
-		if (ti.length > 0) streamStateDebugInput += JSON.stringify(ti[0], null, 2) + '\n';
-		streamStateDebugInput += '\nPRAGMA foreign_key_list("stream_state"):\n';
-		if (fk.length > 0) streamStateDebugInput += JSON.stringify(fk[0], null, 2) + '\n';
-		streamStateDebugInput += '\nCREATE statement:\n';
-		if (create.length > 0 && create[0].values && create[0].values.length > 0) streamStateDebugInput += create[0].values[0][0] + '\n';
-
-		// Log the full, nicely formatted stream_state debug information to the debug console
-		// (do not download a separate debug file when converting NewPipe -> LibreTube)
-		log('Stream state debug (input NewPipe DB):\n' + (streamStateDebugInput || 'No stream_state debug info collected.'), 'schema');
-	} catch (e: any) {
-		log('Failed to collect input stream_state debug: ' + (e.message || e.toString()), 'warn');
-	}
+		try {
+			const streamStateDebugInput = collectStreamStateDebug(db);
+			// Log the full, nicely formatted stream_state debug information to the debug console
+			// (do not download a separate debug file when converting NewPipe -> LibreTube)
+			log('Stream state debug (input NewPipe DB):\n' + (streamStateDebugInput || 'No stream_state debug info collected.'), 'schema');
+		} catch (e: any) {
+			log('Failed to collect input stream_state debug: ' + (e.message || e.toString()), 'warn');
+		}
 
 	log("Extracting Subscriptions...");
 	const subsRes = db.exec(`SELECT url, name, avatar_url FROM subscriptions WHERE service_id = ${SERVICE_ID_YOUTUBE}`);
@@ -239,7 +231,7 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
 	// --- Import watch history & positions from NewPipe DB if requested ---
 	const includeWatchHistory = includeWatchHistoryParam === undefined ? true : Boolean(includeWatchHistoryParam);
 	// If merging and the user explicitly disabled includeWatchHistory, preserve targetData as-is
-	if (includeWatchHistory && npFile) {
+	if (includeWatchHistory) {
 		try {
 			// Select stream metadata so we can build full LibreTube-style watchHistory entries
 			const histRes = db.exec(`SELECT s.url, s.title, s.duration, s.uploader, s.uploader_url, s.thumbnail_url, s.upload_date, sh.access_date, sh.repeat_count FROM stream_history sh JOIN streams s ON sh.stream_id = s.uid WHERE s.service_id = ${SERVICE_ID_YOUTUBE}`) || [];
@@ -347,5 +339,8 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
 	const timestamp = getTimestamp();
 	downloadFile(blob, "libretube_converted.json", timestamp);
 	log("Done! File downloaded.", "info");
+} finally {
+	db.close();
+	log("NewPipe database closed.", "info");
 }
-
+}
