@@ -212,11 +212,11 @@ h3 {
 
 .merge-options {
 	display: flex;
+	flex-wrap: wrap;
 	gap: 12px;
 	align-items: center;
 	margin-bottom: 12px;
 	justify-content: center;
-	;
 }
 
 .merge-options select {
