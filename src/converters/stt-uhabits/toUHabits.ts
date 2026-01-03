@@ -1,7 +1,7 @@
 import type { SqlJsStatic } from 'sql.js';
 import type { ConversionMapping } from '../../types/uhabits';
 import { parseSttBackup, filterRecordsByDuration, groupRecordsByDay, getRecordsForType } from './sttParser';
-import { parseUHabitsBackup, createUHabitsDatabase, timestampToDayStart, exportUHabitsBackup } from './uhabitsHelper';
+import { parseUHabitsBackup, timestampToDayStart, exportUHabitsBackup } from './uhabitsHelper';
 import { log } from '../../logger';
 
 /**
@@ -11,7 +11,8 @@ export async function convertSttToUHabits(
 	sttFile: File,
 	uhabitsFile: File,
 	mappings: ConversionMapping[],
-	SQL: SqlJsStatic
+	SQL: SqlJsStatic,
+	fillRepetitionNotes: boolean = true
 ): Promise<Blob> {
 	log('=== Starting STT → uHabits Conversion ===', 'info');
 	log(`Number of mappings: ${mappings.length}`, 'info');
@@ -21,50 +22,27 @@ export async function convertSttToUHabits(
 	log(`Loaded ${sttData.recordTypes.size} STT activity types`, 'info');
 	log(`Loaded ${sttData.records.length} total STT records`, 'info');
 	
-	// Parse uHabits backup
-	const uhabitsData = await parseUHabitsBackup(uhabitsFile, SQL);
-	log(`Loaded ${uhabitsData.habits.size} uHabits habits (boolean only)`, 'info');
-	log(`Loaded ${uhabitsData.repetitions.length} existing repetitions`, 'info');
-	
-	// Create output database with existing schema
-	const db = createUHabitsDatabase(SQL);
-	
-	// Copy existing habits
-	log('Copying existing habits to new database...', 'info');
-	for (const [id, habit] of uhabitsData.habits) {
-		db.run(`
-			INSERT INTO Habits (
-				id, name, question, color, archived, type, 
-				freq_num, freq_den, position, description, uuid, highlight, 
-				reminder_hour, reminder_min, reminder_days, 
-				target_type, target_value, unit
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`, [
-			habit.id, habit.name, habit.question, habit.color, habit.archived, habit.type,
-			habit.freq_num, habit.freq_den, habit.position, habit.description || null,
-			habit.uuid || null, habit.highlight, habit.reminder_hour, habit.reminder_min,
-			habit.reminder_days, habit.target_type, habit.target_value, habit.unit
-		]);
-	}
+	// Parse uHabits backup - this also loads the database
+	const { db, allHabits, booleanHabits, repetitions } = await parseUHabitsBackup(uhabitsFile, SQL);
+	log(`Loaded ${allHabits.size} total habits`, 'info');
+	log(`Loaded ${repetitions.length} existing repetitions`, 'info');
 	
 	// Build set of existing repetitions for deduplication
+	// This prevents duplicates when multiple STT activities map to the same uHabits habit,
+	// or when a day already has a repetition in the uHabits backup
 	const existingReps = new Set<string>();
-	log('Copying existing repetitions to new database...', 'info');
-	for (const rep of uhabitsData.repetitions) {
-		db.run(`
-			INSERT INTO Repetitions (habit, timestamp, value, notes)
-			VALUES (?, ?, ?, ?)
-		`, [rep.habit_id, rep.timestamp, rep.value, rep.notes || null]);
-		
+	for (const rep of repetitions) {
 		existingReps.add(`${rep.habit_id}:${rep.timestamp}`);
 	}
 	
 	// Process each mapping
+	// Note: Multiple STT activities can map to the same uHabits habit.
+	// The existingReps Set ensures no duplicate repetitions are created for the same habit+day.
 	let totalNewReps = 0;
 	
 	for (const mapping of mappings) {
 		const sttType = sttData.recordTypes.get(mapping.sttTypeId);
-		const uhabit = uhabitsData.habits.get(mapping.uhabitsHabitId);
+		const uhabit = booleanHabits.get(mapping.uhabitsHabitId);
 		
 		if (!sttType) {
 			log(`Warning: STT activity type ${mapping.sttTypeId} not found`, 'warn');
@@ -76,7 +54,7 @@ export async function convertSttToUHabits(
 			continue;
 		}
 		
-		log(`\nProcessing mapping: "${sttType.emoji} ${sttType.name}" → "${uhabit.name}"`, 'info');
+		log(`Processing mapping: "${sttType.emoji} ${sttType.name}" → "${uhabit.name}"`, 'info');
 		
 		// Apply per-mapping duration filter
 		const minDuration = mapping.minDuration || 0;
@@ -119,7 +97,9 @@ export async function convertSttToUHabits(
 			const totalMinutes = Math.round(totalDurationMs / 60000);
 			
 			// Insert new repetition (value=2 means checked)
-			const notes = `Converted from STT: ${dayRecords.length} session${dayRecords.length > 1 ? 's' : ''}, ${totalMinutes}min total`;
+			const notes = fillRepetitionNotes
+				? `Converted from STT: ${dayRecords.length} session${dayRecords.length > 1 ? 's' : ''}, ${totalMinutes}min total`
+				: null;
 			
 			db.run(`
 				INSERT INTO Repetitions (habit, timestamp, value, notes)
@@ -131,23 +111,14 @@ export async function convertSttToUHabits(
 			totalNewReps++;
 		}
 		
-		log(`  ✓ Added ${newCount} new repetitions`, 'info');
+		log(`Added ${newCount} new repetitions`, 'info');
 		if (skippedCount > 0) {
-			log(`  ⊘ Skipped ${skippedCount} existing days`, 'info');
+			log(`Skipped ${skippedCount} existing days`, 'warn');
 		}
 	}
 	
-	// Update sqlite_sequence for autoincrement
-	const maxHabitId = Math.max(...Array.from(uhabitsData.habits.keys()), 0);
-	const maxRepId = uhabitsData.repetitions.length > 0 
-		? Math.max(...uhabitsData.repetitions.map(r => r.id))
-		: 0;
-	
-	db.run(`INSERT INTO sqlite_sequence (name, seq) VALUES ('Habits', ?)`, [maxHabitId]);
-	db.run(`INSERT INTO sqlite_sequence (name, seq) VALUES ('Repetitions', ?)`, [maxRepId + totalNewReps]);
-	
 	// Export database
-	log('\n=== Conversion Complete ===', 'info');
+	log('=== Conversion Complete ===', 'info');
 	log(`Total new repetitions added: ${totalNewReps}`, 'info');
 	log('Exporting database...', 'info');
 	

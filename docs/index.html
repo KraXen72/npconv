@@ -6,7 +6,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>npconv backup converter</title> <!-- remove later-->
 	<!-- Bundled JS will include dependencies (jszip, sql.js) -->
-  <script type="module" crossorigin src="/npconv/assets/index-DnQ5JkNo.js"></script>
+  <script type="module" crossorigin src="/npconv/assets/index-BXIbX4zw.js"></script>
   <link rel="stylesheet" crossorigin href="/npconv/assets/index-BIhelnym.css">
 </head>
 
@@ -68,6 +68,13 @@
 		<section id="action-stt-uhabits-fill" class="controls-block" style="display:none;">
 			<h3>SimpleTimeTracker → uHabits</h3>
 
+			<div class="stt-options">
+				<label for="fill-repetition-notes">
+					<input type="checkbox" id="fill-repetition-notes" checked />
+					Fill repetition descriptions
+				</label>
+			</div>
+
 			<!-- Conversion mappings list -->
 			<div id="conversion-mappings">
 				<h4>Activity Mappings</h4>
@@ -81,7 +88,7 @@
 			<div id="conversion-summary" class="summary-box" style="display: none;">
 				<!-- Summary content will be generated dynamically -->
 			</div>
-			
+
 			<div class="controls">
 				<button id="btn-convert-stt" disabled>
 					Fill

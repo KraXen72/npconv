@@ -28,7 +28,9 @@ export interface UHabitsRepetition {
 }
 
 export interface ParsedUHabitsBackup {
-	habits: Map<number, UHabitsHabit>;
+	db: any; // sql.js Database instance
+	allHabits: Map<number, UHabitsHabit>; // All habits including non-boolean
+	booleanHabits: Map<number, UHabitsHabit>; // Only boolean habits (type=0) for UI
 	repetitions: UHabitsRepetition[];
 }
 

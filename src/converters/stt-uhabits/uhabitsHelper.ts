@@ -3,7 +3,7 @@ import type { ParsedUHabitsBackup, UHabitsHabit, UHabitsRepetition } from '../..
 import { log } from '../../logger';
 
 /**
- * Parse uHabits SQLite backup file
+ * Parse uHabits SQLite backup file and return the loaded database
  */
 export async function parseUHabitsBackup(file: File, SQL: SqlJsStatic): Promise<ParsedUHabitsBackup> {
 	log('Parsing uHabits backup file...', 'info');
@@ -11,17 +11,17 @@ export async function parseUHabitsBackup(file: File, SQL: SqlJsStatic): Promise<
 	const arrayBuffer = await file.arrayBuffer();
 	const db = new SQL.Database(new Uint8Array(arrayBuffer));
 	
-	const habits = new Map<number, UHabitsHabit>();
+	const allHabits = new Map<number, UHabitsHabit>();
+	const booleanHabits = new Map<number, UHabitsHabit>();
 	const repetitions: UHabitsRepetition[] = [];
 	
 	try {
-		// Read Habits table - only boolean habits (type=0), including archived
+		// Read Habits table - ALL habits to preserve them in output
 		const habitsQuery = db.exec(`
 			SELECT id, archived, color, description, freq_den, freq_num, highlight, 
 			       name, position, reminder_hour, reminder_min, reminder_days, 
 			       type, target_type, target_value, unit, question, uuid
-			FROM Habits 
-			WHERE type = 0
+			FROM Habits
 		`);
 		
 		if (habitsQuery.length > 0) {
@@ -47,9 +47,13 @@ export async function parseUHabitsBackup(file: File, SQL: SqlJsStatic): Promise<
 					question: row[16] as string,
 					uuid: row[17] as string | undefined
 				};
-				habits.set(habit.id, habit);
+				allHabits.set(habit.id, habit);
+				// Only add boolean habits (type=0) to the UI selection map
+				if (habit.type === 0) {
+					booleanHabits.set(habit.id, habit);
+				}
 			}
-			log(`Loaded ${habits.size} boolean habits from uHabits`, 'info');
+			log(`Loaded ${allHabits.size} total habits (${booleanHabits.size} boolean, ${allHabits.size - booleanHabits.size} non-boolean)`, 'info');
 		}
 		
 		// Read Repetitions table
@@ -72,70 +76,13 @@ export async function parseUHabitsBackup(file: File, SQL: SqlJsStatic): Promise<
 			log(`Loaded ${repetitions.length} repetitions from uHabits`, 'info');
 		}
 		
-	} finally {
+	} catch (error) {
 		db.close();
+		throw error;
 	}
 	
-	return { habits, repetitions };
-}
-
-/**
- * Create a new uHabits database with schema
- */
-export function createUHabitsDatabase(SQL: SqlJsStatic): Database {
-	const db = new SQL.Database();
-	
-	// Create Habits table
-	db.run(`
-		CREATE TABLE Habits (
-			id integer primary key autoincrement,
-			archived integer,
-			color integer,
-			description text,
-			freq_den integer,
-			freq_num integer,
-			highlight integer,
-			name text,
-			position integer,
-			reminder_hour integer,
-			reminder_min integer,
-			reminder_days integer not null default 127,
-			type integer not null default 0,
-			target_type integer not null default 0,
-			target_value real not null default 0,
-			unit text not null default "",
-			question text,
-			uuid text
-		)
-	`);
-	
-	// Create Repetitions table
-	db.run(`
-		CREATE TABLE Repetitions (
-			id integer primary key autoincrement,
-			habit integer not null references habits(id),
-			timestamp integer not null,
-			value integer not null,
-			notes text
-		)
-	`);
-	
-	// Create unique index
-	db.run(`
-		CREATE UNIQUE INDEX idx_repetitions_habit_timestamp 
-		ON Repetitions(habit, timestamp)
-	`);
-	
-	// Create android_metadata table (required by uHabits)
-	db.run(`CREATE TABLE android_metadata (locale TEXT)`);
-	db.run(`INSERT INTO android_metadata VALUES ('en_US')`);
-	
-	// Create sqlite_sequence table (for autoincrement)
-	db.run(`CREATE TABLE sqlite_sequence(name, seq)`);
-	
-	log('Created uHabits database schema', 'info');
-	
-	return db;
+	// Return the database object along with parsed data (caller is responsible for closing)
+	return { db, allHabits, booleanHabits, repetitions };
 }
 
 /**

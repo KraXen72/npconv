@@ -29,6 +29,8 @@ export function setupSttHandlers(SQL: SqlJsStatic) {
 			sttData = await parseSttBackup(file);
 			log(`Loaded ${sttData.recordTypes.size} STT activity types`, 'info');
 			populateAllSttSelects();
+			hideAllActivityGrids();
+			updateSummary();
 			updateConvertButton();
 		} catch (error: any) {
 			log(`Error loading STT file: ${error.message}`, 'err');
@@ -42,12 +44,13 @@ export function setupSttHandlers(SQL: SqlJsStatic) {
 		
 		try {
 			uhabitsData = await parseUHabitsBackup(file, SQL);
-			log(`Loaded ${uhabitsData.habits.size} uHabits habits (boolean only)`, 'info');
+			log(`Loaded ${uhabitsData.allHabits.size} total habits (${uhabitsData.booleanHabits.size} boolean)`, 'info');
 			populateAllUHabitsSelects();
+			hideAllActivityGrids();
+			updateSummary();
 			updateConvertButton();
 		} catch (error: any) {
-			log(`Error loading uHabits file: ${error.message}`, 'err');
-			uhabitsData = null;
+			log(`Error loading uHabits file: ${error.message}`, 'err');		if (uhabitsData?.db) uhabitsData.db.close();			uhabitsData = null;
 		}
 	});
 
@@ -164,6 +167,7 @@ function populateSttSelect(select: HTMLSelectElement) {
 
 	// Clear existing options except first
 	select.innerHTML = '<option value="">Select STT activity...</option>';
+	select.value = ''; // Reset selection
 
 	for (const [id, type] of sttData.recordTypes) {
 		const option = document.createElement('option');
@@ -178,12 +182,13 @@ function populateUHabitsSelect(select: HTMLSelectElement) {
 
 	// Clear existing options except first
 	select.innerHTML = '<option value="">Select uHabits habit...</option>';
+	select.value = ''; // Reset selection
 
-	// Separate active and archived habits
-	const activeHabits: Array<[number, typeof uhabitsData.habits extends Map<any, infer T> ? T : never]> = [];
-	const archivedHabits: Array<[number, typeof uhabitsData.habits extends Map<any, infer T> ? T : never]> = [];
+	// Separate active and archived habits (only boolean habits for UI)
+	const activeHabits: Array<[number, typeof uhabitsData.booleanHabits extends Map<any, infer T> ? T : never]> = [];
+	const archivedHabits: Array<[number, typeof uhabitsData.booleanHabits extends Map<any, infer T> ? T : never]> = [];
 
-	for (const [id, habit] of uhabitsData.habits) {
+	for (const [id, habit] of uhabitsData.booleanHabits) {
 		if (habit.archived) {
 			archivedHabits.push([id, habit]);
 		} else {
@@ -228,6 +233,12 @@ function populateAllSttSelects() {
 function populateAllUHabitsSelects() {
 	document.querySelectorAll('.uhabits-habit-select').forEach(select => {
 		populateUHabitsSelect(select as HTMLSelectElement);
+	});
+}
+
+function hideAllActivityGrids() {
+	document.querySelectorAll('.activity-grid-container').forEach(container => {
+		(container as HTMLElement).style.display = 'none';
 	});
 }
 
@@ -335,7 +346,7 @@ function updateSummary() {
 			validMappings++;
 
 			const sttType = sttData!.recordTypes.get(sttTypeId);
-			const uhabit = uhabitsData!.habits.get(uhabitsHabitId);
+			const uhabit = uhabitsData!.booleanHabits.get(uhabitsHabitId);
 
 			if (sttType && uhabit) {
 				// Get min duration for this specific mapping
@@ -369,7 +380,6 @@ function updateSummary() {
 		summaryBox.innerHTML = `
 			<h4>Conversion Summary</h4>
 			<ul>
-				<li>${validMappings} mapping(s) configured</li>
 				<li>${totalNewDays} new repetitions will be added</li>
 				${mappingDetails.map(d => `<li>${d}</li>`).join('')}
 			</ul>
@@ -434,17 +444,22 @@ async function performSttConversion(SQL: SqlJsStatic) {
 		const convertBtn = document.getElementById('btn-convert-stt') as HTMLButtonElement;
 		if (convertBtn) convertBtn.disabled = true;
 
+		// Get checkbox state for filling repetition notes
+		const fillNotesCheckbox = document.getElementById('fill-repetition-notes') as HTMLInputElement | null;
+		const fillRepetitionNotes = fillNotesCheckbox ? fillNotesCheckbox.checked : true;
+
 		log('Starting conversion...', 'info');
 
 		const blob = await convertSttToUHabits(
 			sttFile,
 			uhabitsFile,
 			mappings,
-			SQL
+			SQL,
+			fillRepetitionNotes
 		);
 
 		downloadFile(blob, 'uhabits_with_stt.backup', null);
-		log('✓ Conversion complete! Download started.', 'info');
+		log('Conversion complete! Download started.', 'info');
 	} catch (error: any) {
 		log(`Conversion failed: ${error.message}`, 'err');
 		console.error(error);
