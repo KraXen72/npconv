@@ -28,7 +28,7 @@ export function setupSttHandlers(SQL: SqlJsStatic) {
 		try {
 			sttData = await parseSttBackup(file);
 			log(`Loaded ${sttData.recordTypes.size} STT activity types`, 'info');
-			populateAllSttSelects();
+			document.querySelectorAll('.stt-activity-select').forEach(select => populateSttSelect(select as HTMLSelectElement));
 			hideAllActivityGrids();
 			updateSummary();
 			updateConvertButton();
@@ -44,8 +44,8 @@ export function setupSttHandlers(SQL: SqlJsStatic) {
 		
 		try {
 			uhabitsData = await parseUHabitsBackup(file, SQL);
-			log(`Loaded ${uhabitsData.allHabits.size} total habits (${uhabitsData.booleanHabits.size} boolean)`, 'info');
-			populateAllUHabitsSelects();
+			log(`Loaded ${uhabitsData.allHabits.size} habits (${uhabitsData.booleanHabits.size} boolean)`, 'info');
+			document.querySelectorAll('.uhabits-habit-select').forEach(select => populateUHabitsSelect(select as HTMLSelectElement));
 			hideAllActivityGrids();
 			updateSummary();
 			updateConvertButton();
@@ -224,22 +224,31 @@ function populateUHabitsSelect(select: HTMLSelectElement) {
 	}
 }
 
-function populateAllSttSelects() {
-	document.querySelectorAll('.stt-activity-select').forEach(select => {
-		populateSttSelect(select as HTMLSelectElement);
-	});
-}
-
-function populateAllUHabitsSelects() {
-	document.querySelectorAll('.uhabits-habit-select').forEach(select => {
-		populateUHabitsSelect(select as HTMLSelectElement);
-	});
-}
-
 function hideAllActivityGrids() {
 	document.querySelectorAll('.activity-grid-container').forEach(container => {
 		(container as HTMLElement).style.display = 'none';
 	});
+}
+
+function calculateNewDaysForMapping(sttTypeId: number, uhabitsHabitId: number, minDuration: number): number {
+	if (!sttData || !uhabitsData) return 0;
+	
+	const filteredRecords = filterRecordsByDuration(sttData.records, minDuration);
+	const typeRecords = getRecordsForType(filteredRecords, sttTypeId);
+	const dayGroups = groupRecordsByDay(typeRecords);
+
+	const existingDates = new Set<string>();
+	for (const rep of uhabitsData.repetitions) {
+		if (rep.habit_id === uhabitsHabitId && rep.value > 0) {
+			existingDates.add(new Date(rep.timestamp).toISOString().split('T')[0]);
+		}
+	}
+
+	let newDays = 0;
+	for (const dayStr of dayGroups.keys()) {
+		if (!existingDates.has(dayStr)) newDays++;
+	}
+	return newDays;
 }
 
 function updateActivityGrid(mappingId: number) {
@@ -262,13 +271,12 @@ function updateActivityGrid(mappingId: number) {
 	// Show grid
 	gridContainer.style.display = 'block';
 
-	// Get minimum duration from the mapping item
 	const minDurationInput = item.querySelector('.min-duration-input') as HTMLInputElement;
 	const minDuration = minDurationInput ? parseInt(minDurationInput.value) || 0 : 0;
 
-	// Get existing repetitions
-	const existingData: any[] = [];
+	// Get existing repetitions as dates
 	const existingDates = new Set<string>();
+	const existingData: any[] = [];
 	
 	for (const rep of uhabitsData.repetitions) {
 		if (rep.habit_id === uhabitsHabitId && rep.value > 0) {
@@ -284,13 +292,12 @@ function updateActivityGrid(mappingId: number) {
 	const dayGroups = groupRecordsByDay(typeRecords);
 
 	const newData: any[] = [];
-	for (const [dayStr, records] of dayGroups) {
+	for (const [dayStr] of dayGroups) {
 		if (!existingDates.has(dayStr)) {
 			newData.push({ date: dayStr, count: 1 });
 		}
 	}
 
-	// Set grid properties
 	grid.data = [...existingData, ...newData];
 	
 	// Initialize year to last entry year if not set
@@ -349,26 +356,8 @@ function updateSummary() {
 			const uhabit = uhabitsData!.booleanHabits.get(uhabitsHabitId);
 
 			if (sttType && uhabit) {
-				// Get min duration for this specific mapping
 				const minDuration = minDurationInput ? parseInt(minDurationInput.value) || 0 : 0;
-				// Calculate new days for this mapping
-				const filteredRecords = filterRecordsByDuration(sttData!.records, minDuration);
-				const typeRecords = getRecordsForType(filteredRecords, sttTypeId);
-				const dayGroups = groupRecordsByDay(typeRecords);
-
-				// Count only days that don't already exist
-				const existingDates = new Set<string>();
-				for (const rep of uhabitsData!.repetitions) {
-					if (rep.habit_id === uhabitsHabitId && rep.value > 0) {
-						existingDates.add(new Date(rep.timestamp).toISOString().split('T')[0]);
-					}
-				}
-
-				let newDays = 0;
-				for (const dayStr of dayGroups.keys()) {
-					if (!existingDates.has(dayStr)) newDays++;
-				}
-
+				const newDays = calculateNewDaysForMapping(sttTypeId, uhabitsHabitId, minDuration);
 				totalNewDays += newDays;
 				mappingDetails.push(`"${sttType.emoji} ${sttType.name}" → "${uhabit.name}": ${newDays} new days`);
 			}

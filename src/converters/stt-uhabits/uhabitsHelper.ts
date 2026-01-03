@@ -25,8 +25,7 @@ export async function parseUHabitsBackup(file: File, SQL: SqlJsStatic): Promise<
 		`);
 		
 		if (habitsQuery.length > 0) {
-			const rows = habitsQuery[0].values;
-			for (const row of rows) {
+			for (const row of habitsQuery[0].values) {
 				const habit: UHabitsHabit = {
 					id: row[0] as number,
 					archived: row[1] as number,
@@ -48,23 +47,16 @@ export async function parseUHabitsBackup(file: File, SQL: SqlJsStatic): Promise<
 					uuid: row[17] as string | undefined
 				};
 				allHabits.set(habit.id, habit);
-				// Only add boolean habits (type=0) to the UI selection map
-				if (habit.type === 0) {
-					booleanHabits.set(habit.id, habit);
-				}
+				if (habit.type === 0) booleanHabits.set(habit.id, habit);
 			}
-			log(`Loaded ${allHabits.size} total habits (${booleanHabits.size} boolean, ${allHabits.size - booleanHabits.size} non-boolean)`, 'info');
+			log(`Loaded ${allHabits.size} habits (${booleanHabits.size} boolean)`, 'info');
 		}
 		
 		// Read Repetitions table
-		const repsQuery = db.exec(`
-			SELECT id, habit, timestamp, value, notes
-			FROM Repetitions
-		`);
+		const repsQuery = db.exec(`SELECT id, habit, timestamp, value, notes FROM Repetitions`);
 		
 		if (repsQuery.length > 0) {
-			const rows = repsQuery[0].values;
-			for (const row of rows) {
+			for (const row of repsQuery[0].values) {
 				repetitions.push({
 					id: row[0] as number,
 					habit_id: row[1] as number,
@@ -73,7 +65,7 @@ export async function parseUHabitsBackup(file: File, SQL: SqlJsStatic): Promise<
 					notes: row[4] as string | undefined
 				});
 			}
-			log(`Loaded ${repetitions.length} repetitions from uHabits`, 'info');
+			log(`Loaded ${repetitions.length} repetitions`, 'info');
 		}
 		
 	} catch (error) {

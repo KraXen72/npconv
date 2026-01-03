@@ -14,18 +14,13 @@ export async function convertSttToUHabits(
 	SQL: SqlJsStatic,
 	fillRepetitionNotes: boolean = false
 ): Promise<Blob> {
-	log('=== Starting STT → uHabits Conversion ===', 'info');
-	log(`Number of mappings: ${mappings.length}`, 'info');
+	log('Starting STT → uHabits conversion', 'info');
 	
-	// Parse STT backup
 	const sttData = await parseSttBackup(sttFile);
-	log(`Loaded ${sttData.recordTypes.size} STT activity types`, 'info');
-	log(`Loaded ${sttData.records.length} total STT records`, 'info');
+	log(`Loaded ${sttData.recordTypes.size} activities, ${sttData.records.length} records`, 'info');
 	
-	// Parse uHabits backup - this also loads the database
 	const { db, allHabits, booleanHabits, repetitions } = await parseUHabitsBackup(uhabitsFile, SQL);
-	log(`Loaded ${allHabits.size} total habits`, 'info');
-	log(`Loaded ${repetitions.length} existing repetitions`, 'info');
+	log(`Loaded ${allHabits.size} habits, ${repetitions.length} repetitions`, 'info');
 	
 	// Build set of existing repetitions for deduplication
 	// This prevents duplicates when multiple STT activities map to the same uHabits habit,
@@ -44,38 +39,18 @@ export async function convertSttToUHabits(
 		const sttType = sttData.recordTypes.get(mapping.sttTypeId);
 		const uhabit = booleanHabits.get(mapping.uhabitsHabitId);
 		
-		if (!sttType) {
-			log(`Warning: STT activity type ${mapping.sttTypeId} not found`, 'warn');
+		if (!sttType || !uhabit) {
+			log(`Skipping invalid mapping`, 'warn');
 			continue;
 		}
 		
-		if (!uhabit) {
-			log(`Warning: uHabits habit ${mapping.uhabitsHabitId} not found`, 'warn');
-			continue;
-		}
-		
-		log(`Processing mapping: "${sttType.emoji} ${sttType.name}" → "${uhabit.name}"`, 'info');
-		
-		// Apply per-mapping duration filter
 		const minDuration = mapping.minDuration || 0;
-		if (minDuration > 0) {
-			log(`  Minimum duration: ${minDuration} minutes`, 'info');
-		}
 		const filteredRecords = filterRecordsByDuration(sttData.records, minDuration);
-		
-		// Filter records for this specific activity type
 		const typeRecords = getRecordsForType(filteredRecords, mapping.sttTypeId);
-		log(`  Found ${typeRecords.length} records for this activity`, 'info');
 		
-		if (typeRecords.length === 0) {
-			log(`  No records to convert`, 'info');
-			continue;
-		}
+		if (typeRecords.length === 0) continue;
 		
-		// Group by day (multiple records in same day = one habit checkmark)
 		const dayGroups = groupRecordsByDay(typeRecords);
-		log(`  Records span ${dayGroups.size} unique days`, 'info');
-		
 		let newCount = 0;
 		let skippedCount = 0;
 		
@@ -99,7 +74,7 @@ export async function convertSttToUHabits(
 			// Insert new repetition (value=2 means checked)
 			const notes = fillRepetitionNotes
 				? `Converted from STT: ${dayRecords.length} session${dayRecords.length > 1 ? 's' : ''}, ${totalMinutes}min total`
-				: null;
+				: '';
 			
 			db.run(`
 				INSERT INTO Repetitions (habit, timestamp, value, notes)
@@ -111,16 +86,10 @@ export async function convertSttToUHabits(
 			totalNewReps++;
 		}
 		
-		log(`Added ${newCount} new repetitions`, 'info');
-		if (skippedCount > 0) {
-			log(`Skipped ${skippedCount} existing days`, 'warn');
-		}
+		log(`"${sttType.emoji} ${sttType.name}" → "${uhabit.name}": +${newCount}${skippedCount > 0 ? ` (${skippedCount} skipped)` : ''}`, 'info');
 	}
 	
-	// Export database
-	log('=== Conversion Complete ===', 'info');
-	log(`Total new repetitions added: ${totalNewReps}`, 'info');
-	log('Exporting database...', 'info');
+	log(`Conversion complete: ${totalNewReps} new repetitions added`, 'info');
 	
 	const dbData = exportUHabitsBackup(db);
 	db.close();
