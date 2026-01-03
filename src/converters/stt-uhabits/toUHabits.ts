@@ -12,7 +12,7 @@ export async function convertSttToUHabits(
 	uhabitsFile: File,
 	mappings: ConversionMapping[],
 	SQL: SqlJsStatic,
-	fillRepetitionNotes: boolean = true
+	fillRepetitionNotes: boolean = false
 ): Promise<Blob> {
 	log('=== Starting STT → uHabits Conversion ===', 'info');
 	log(`Number of mappings: ${mappings.length}`, 'info');

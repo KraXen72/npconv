@@ -185,8 +185,8 @@ function populateUHabitsSelect(select: HTMLSelectElement) {
 	select.value = ''; // Reset selection
 
 	// Separate active and archived habits (only boolean habits for UI)
-	const activeHabits: Array<[number, typeof uhabitsData.booleanHabits extends Map<any, infer T> ? T : never]> = [];
-	const archivedHabits: Array<[number, typeof uhabitsData.booleanHabits extends Map<any, infer T> ? T : never]> = [];
+	const activeHabits: [number, any][] = [];
+	const archivedHabits: [number, any][] = [];
 
 	for (const [id, habit] of uhabitsData.booleanHabits) {
 		if (habit.archived) {
@@ -446,7 +446,7 @@ async function performSttConversion(SQL: SqlJsStatic) {
 
 		// Get checkbox state for filling repetition notes
 		const fillNotesCheckbox = document.getElementById('fill-repetition-notes') as HTMLInputElement | null;
-		const fillRepetitionNotes = fillNotesCheckbox ? fillNotesCheckbox.checked : true;
+		const fillRepetitionNotes = fillNotesCheckbox ? fillNotesCheckbox.checked : false;
 
 		log('Starting conversion...', 'info');
 

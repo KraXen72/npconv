@@ -100,18 +100,3 @@ export function timestampToDayStart(timestampMs: number): number {
 export function exportUHabitsBackup(db: Database): Uint8Array {
 	return db.export();
 }
-
-/**
- * Get default color for new habits (uHabits purple)
- */
-export function getDefaultHabitColor(): number {
-	// uHabits uses integer colors, 13 is typically a purple/blue shade
-	return 13;
-}
-
-/**
- * Generate a unique habit question from name
- */
-export function generateHabitQuestion(name: string): string {
-	return `Did you ${name.toLowerCase()}?`;
-}
