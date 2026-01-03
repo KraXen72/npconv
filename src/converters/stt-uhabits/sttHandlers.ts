@@ -83,14 +83,20 @@ function addMapping() {
 			<select class="uhabits-habit-select" data-mapping-id="${mappingId}">
 				<option value="">Select uHabits habit...</option>
 			</select>
-			<label class="min-duration-label">
-				Min:
-				<input type="number" class="min-duration-input" value="5" min="0" step="1" title="Minimum duration in minutes">
-				min
-			</label>
 			<button class="remove-button remove-mapping" aria-label="Remove mapping">
 				<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><!-- Icon from Lucide by Lucide Contributors - https://github.com/lucide-icons/lucide/blob/main/LICENSE --><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12"/></svg>
 			</button>
+		</div>
+		<div class="mapping-options">
+			<label class="option-item">
+				<span class="option-label">Min duration:</span>
+				<input type="number" class="min-duration-input" value="5" min="0" step="1" title="Minimum duration in minutes">
+				<span class="option-unit">min</span>
+			</label>
+			<label class="option-item option-checkbox" title="Copy STT activity comments to repetition notes">
+				<input type="checkbox" class="copy-stt-comments-checkbox">
+				<span class="option-label">Copy comments</span>
+			</label>
 		</div>
 		<div class="activity-grid-container" style="display: none;">
 			<div class="grid-year-nav">
@@ -414,13 +420,15 @@ async function performSttConversion(SQL: SqlJsStatic) {
 		const sttSelect = item.querySelector('.stt-activity-select') as HTMLSelectElement;
 		const uhabitsSelect = item.querySelector('.uhabits-habit-select') as HTMLSelectElement;
 		const minDurationInput = item.querySelector('.min-duration-input') as HTMLInputElement;
+		const copySttCommentsCheckbox = item.querySelector('.copy-stt-comments-checkbox') as HTMLInputElement;
 
 		const sttTypeId = parseInt(sttSelect.value);
 		const uhabitsHabitId = parseInt(uhabitsSelect.value);
 		const minDuration = minDurationInput ? parseInt(minDurationInput.value) || 0 : 0;
+		const copySttComments = copySttCommentsCheckbox ? copySttCommentsCheckbox.checked : false;
 
 		if (sttTypeId && uhabitsHabitId) {
-			mappings.push({ sttTypeId, uhabitsHabitId, minDuration });
+			mappings.push({ sttTypeId, uhabitsHabitId, minDuration, copySttComments });
 		}
 	}
 
@@ -433,23 +441,13 @@ async function performSttConversion(SQL: SqlJsStatic) {
 		const convertBtn = document.getElementById('btn-convert-stt') as HTMLButtonElement;
 		if (convertBtn) convertBtn.disabled = true;
 
-		// Get checkbox state for filling repetition notes
-		const fillNotesCheckbox = document.getElementById('fill-repetition-notes') as HTMLInputElement | null;
-		const fillRepetitionNotes = fillNotesCheckbox ? fillNotesCheckbox.checked : false;
-		
-		// Get checkbox state for copying STT comments
-		const copySttCommentsCheckbox = document.getElementById('copy-stt-comments') as HTMLInputElement | null;
-		const copySttComments = copySttCommentsCheckbox ? copySttCommentsCheckbox.checked : false;
-
 		log('Starting conversion...', 'info');
 
 		const blob = await convertSttToUHabits(
 			sttFile,
 			uhabitsFile,
 			mappings,
-			SQL,
-			fillRepetitionNotes,
-			copySttComments
+			SQL
 		);
 
 		downloadFile(blob, 'uhabits_with_stt.backup', null);

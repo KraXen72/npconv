@@ -11,9 +11,7 @@ export async function convertSttToUHabits(
 	sttFile: File,
 	uhabitsFile: File,
 	mappings: ConversionMapping[],
-	SQL: SqlJsStatic,
-	fillRepetitionNotes: boolean = false,
-	copySttComments: boolean = false
+	SQL: SqlJsStatic
 ): Promise<Blob> {
 	log('Starting STT → uHabits conversion', 'info');
 	
@@ -31,10 +29,11 @@ export async function convertSttToUHabits(
 		existingReps.add(`${rep.habit_id}:${rep.timestamp}`);
 	}
 	
-	// Process each mapping
+	// Process each mapping and collect new repetitions
 	// Note: Multiple STT activities can map to the same uHabits habit.
 	// The existingReps Set ensures no duplicate repetitions are created for the same habit+day.
-	let totalNewReps = 0;
+	const newRepetitions: Array<{ habitId: number, timestamp: number, notes: string }> = [];
+	const mappingStats: Array<{ name: string, newCount: number, skippedCount: number }> = [];
 	
 	for (const mapping of mappings) {
 		const sttType = sttData.recordTypes.get(mapping.sttTypeId);
@@ -56,28 +55,21 @@ export async function convertSttToUHabits(
 		let skippedCount = 0;
 		
 		for (const [dayStr, dayRecords] of dayGroups) {
-			// Use midnight of the day from first record's start time
 			const dayTimestamp = timestampToDayStart(dayRecords[0].start_timestamp);
 			const key = `${mapping.uhabitsHabitId}:${dayTimestamp}`;
 			
-			// Skip if already exists
 			if (existingReps.has(key)) {
 				skippedCount++;
 				continue;
 			}
 			
-			// Calculate total duration for this day
 			const totalDurationMs = dayRecords.reduce((sum, r) => 
 				sum + (r.end_timestamp - r.start_timestamp), 0
 			);
 			const totalMinutes = Math.round(totalDurationMs / 60000);
 			
-			// Build notes: fill with conversion info OR copy STT comments (if enabled and present)
 			let notes = '';
-			if (fillRepetitionNotes) {
-				notes = `Converted from STT: ${dayRecords.length} session${dayRecords.length > 1 ? 's' : ''}, ${totalMinutes}min total`;
-			} else if (copySttComments) {
-				// Collect unique comments from records of this day
+			if (mapping.copySttComments) {
 				const comments = dayRecords
 					.map(r => r.comment)
 					.filter((c): c is string => !!c && c.trim().length > 0);
@@ -86,20 +78,35 @@ export async function convertSttToUHabits(
 				}
 			}
 			
-			db.run(`
-				INSERT INTO Repetitions (habit, timestamp, value, notes)
-				VALUES (?, ?, ?, ?)
-			`, [mapping.uhabitsHabitId, dayTimestamp, 2, notes]);
-			
+			newRepetitions.push({ habitId: mapping.uhabitsHabitId, timestamp: dayTimestamp, notes });
 			existingReps.add(key);
 			newCount++;
-			totalNewReps++;
 		}
 		
-		log(`"${sttType.emoji} ${sttType.name}" → "${uhabit.name}": +${newCount}${skippedCount > 0 ? ` (${skippedCount} skipped)` : ''}`, 'info');
+		mappingStats.push({ 
+			name: `"${sttType.emoji} ${sttType.name}" -> "${uhabit.name}"`, 
+			newCount, 
+			skippedCount 
+		});
 	}
 	
-	log(`Conversion complete: ${totalNewReps} new repetitions added`, 'info');
+	// Sort new repetitions by timestamp before inserting
+	newRepetitions.sort((a, b) => a.timestamp - b.timestamp);
+	
+	// Insert all new repetitions in sorted order
+	for (const rep of newRepetitions) {
+		db.run(`
+			INSERT INTO Repetitions (habit, timestamp, value, notes)
+			VALUES (?, ?, ?, ?)
+		`, [rep.habitId, rep.timestamp, 2, rep.notes]);
+	}
+	
+	// Log results
+	for (const stat of mappingStats) {
+		log(`${stat.name}: +${stat.newCount}${stat.skippedCount > 0 ? ` (${stat.skippedCount} skipped)` : ''}`, 'info');
+	}
+	
+	log(`Conversion complete: ${newRepetitions.length} new repetitions added`, 'info');
 	
 	const dbData = exportUHabitsBackup(db);
 	db.close();

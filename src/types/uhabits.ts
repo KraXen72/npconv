@@ -38,4 +38,5 @@ export interface ConversionMapping {
 	sttTypeId: number;
 	uhabitsHabitId: number;
 	minDuration?: number;
+	copySttComments?: boolean;
 }

@@ -448,7 +448,7 @@ button:active:not(:disabled) {
 	display: flex;
 	align-items: center;
 	gap: 12px;
-	flex-wrap: wrap;
+	margin-bottom: 10px;
 }
 
 .stt-activity-select,
@@ -477,7 +477,6 @@ button:active:not(:disabled) {
 	box-shadow: 0 0 0 2px rgba(187, 134, 252, 0.1);
 }
 
-
 .mapping-arrow {
 	color: var(--primary);
 	font-size: 20px;
@@ -485,25 +484,57 @@ button:active:not(:disabled) {
 	flex-shrink: 0;
 }
 
-.min-duration-label {
+.mapping-options {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: 20px;
+	flex-wrap: wrap;
+	padding: 8px 0;
+}
+
+.option-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
 	font-size: 13px;
-	color: var(--text);
-	white-space: nowrap;
-	flex-shrink: 0;
+	color: var(--text-muted);
+	cursor: pointer;
+	user-select: none;
+}
+
+.option-item .option-label {
+	color: var(--text-muted);
+}
+
+.option-checkbox {
+	gap: 6px;
+}
+
+.option-checkbox input[type="checkbox"] {
+	cursor: pointer;
+	width: 16px;
+	height: 16px;
+	margin: 0;
+}
+
+.option-unit {
+	color: var(--text-muted);
 }
 
 .min-duration-input {
-	width: 60px;
-	padding: 6px 8px;
-	background: #1b1b1b;
+	width: 55px;
+	padding: 5px 8px;
+	background: #2c2c2c;
 	border: 1px solid var(--border);
-	border-radius: 6px;
+	border-radius: 4px;
 	color: var(--text);
 	font-size: 13px;
+	text-align: center;
 	transition: border-color 0.2s;
+}
+
+.min-duration-input:hover {
+	border-color: var(--border-hover);
 }
 
 .min-duration-input:focus {
