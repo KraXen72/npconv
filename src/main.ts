@@ -9,6 +9,10 @@ import type { SqlJsStatic } from 'sql.js';
 
 let SQL: SqlJsStatic;
 
+function isNewPipeMode(mode: string): boolean {
+	return mode === 'merge' || mode === 'convert';
+}
+
 // --- Initialization ---
 window.onload = async () => {
   log("Initializing SQL.js...");
@@ -60,8 +64,8 @@ export function updateUI() {
   // Clear file inputs only when switching between different converter types (newpipe/libretube vs stt)
   // Don't clear when switching between merge and convert (both are newpipe modes)
   const prevModeKey = (window as any).prevMode;
-  const prevWasNewpipe = prevModeKey === 'merge' || prevModeKey === 'convert';
-  const currentIsNewpipe = mode === 'merge' || mode === 'convert';
+  const prevWasNewpipe = isNewPipeMode(prevModeKey);
+  const currentIsNewpipe = isNewPipeMode(mode);
   const shouldClearFiles = prevModeKey && (prevWasNewpipe !== currentIsNewpipe);
   
   const fileLeft = document.getElementById('file-left') as HTMLInputElement | null;

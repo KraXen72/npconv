@@ -4,34 +4,29 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>npconv backup converter</title>
+	<title>npconv backup converter</title> <!-- remove later-->
 	<!-- Bundled JS will include dependencies (jszip, sql.js) -->
-  <script type="module" crossorigin src="/npconv/assets/index-Bxy7NnMy.js"></script>
-  <link rel="stylesheet" crossorigin href="/npconv/assets/index-Bpe8BQ-G.css">
+  <script type="module" crossorigin src="/npconv/assets/index-DnQ5JkNo.js"></script>
+  <link rel="stylesheet" crossorigin href="/npconv/assets/index-BIhelnym.css">
 </head>
 
 <body>
-	<div class="container">
-		<h1>NewPipe ⇌ LibreTube Backup Converter</h1>
+	<section class="container">
+		<h1>npconv backup converter</h1>
 
 		<div class="mode-selector">
 			<div class="mode-switch" role="tablist" aria-label="Mode selector">
 				<input type="radio" id="mode-merge" name="mode" value="merge" checked onchange="updateUI()">
-				<label for="mode-merge" class="mode-pill">Merge</label>
+				<label for="mode-merge" class="mode-pill">NewPipe ⇌ LibreTube: Merge</label>
 				<input type="radio" id="mode-convert" name="mode" value="convert" onchange="updateUI()">
-				<label for="mode-convert" class="mode-pill">Convert</label>
+				<label for="mode-convert" class="mode-pill">NewPipe ⇌ LibreTube: Convert</label>
 				<input type="radio" id="mode-stt" name="mode" value="stt" onchange="updateUI()">
-				<label for="mode-stt" class="mode-pill">STT → uHabits</label>
+				<label for="mode-stt" class="mode-pill">SimpleTimeTracker → uHabits</label>
 			</div>
 		</div>
 
-		<div class="global-option">
-			<label for="include-watch-history">Include watch history:</label>
-			<input type="checkbox" id="include-watch-history" checked />
-		</div>
-
-		<!-- Merge controls (visible when merge selected) -->
-		<div id="merge-controls" class="controls-block">
+		<section id="action-newpipe-libretube-merge" class="controls-block">
+			<h3>NewPipe ⇌ LibreTube: Merge</h3>
 			<div class="merge-options">
 				<label for="playlist-behavior">Playlists handling:</label>
 				<select id="playlist-behavior">
@@ -42,15 +37,16 @@
 				</select>
 			</div>
 
-
-
 			<div class="direction-toggle">
 				<span class="dir-label">NewPipe</span>
 				<label class="two-way">
 					<input type="checkbox" id="merge-direction" aria-label="Merge direction" />
 					<span class="slider" aria-hidden="true">
 						<!-- Arrow icon; will rotate via CSS to indicate direction -->
-						<svg class="toggle-arrow" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13a1 1 0 0 0-1-1H5.061a1 1 0 0 1-.75-1.811l6.836-6.835a1.207 1.207 0 0 1 1.707 0l6.835 6.835a1 1 0 0 1-.75 1.811H16a1 1 0 0 0-1 1v6a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1z"/></svg>
+						<svg class="toggle-arrow" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+							<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+								d="M9 13a1 1 0 0 0-1-1H5.061a1 1 0 0 1-.75-1.811l6.836-6.835a1.207 1.207 0 0 1 1.707 0l6.835 6.835a1 1 0 0 1-.75 1.811H16a1 1 0 0 0-1 1v6a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1z" />
+						</svg>
 					</span>
 				</label>
 				<span class="dir-label">LibreTube</span>
@@ -59,46 +55,19 @@
 			<div class="controls">
 				<button id="btn-merge">Merge</button>
 			</div>
-		</div>
+		</section>
 
-		<!-- Convert controls (visible when convert selected) -->
-		<div id="convert-controls" class="controls-block" style="display:none;">
+		<section id="action-newpipe-libretube-convert" class="controls-block" style="display:none;">
+			<h3>NewPipe ⇌ LibreTube: Convert</h3>
 			<div class="controls">
 				<button id="btn-to-newpipe" onclick="processBackup('to_newpipe')">Target: NewPipe</button>
 				<button id="btn-to-libretube" onclick="processBackup('to_libretube')">Target: LibreTube</button>
 			</div>
-		</div>
+		</section>
 
-		<!-- STT to uHabits controls (visible when stt mode selected) -->
-		<div id="stt-controls" class="controls-block" style="display:none;">
-			<h3>STT → uHabits Conversion</h3>
-			
-			<!-- File uploads -->
-			<div class="file-area">
-				<div class="drop-zone" id="zone-stt" role="button" tabindex="0" aria-label="Select STT backup">
-					<h4>Simple Time Tracker Backup</h4>
-					<p><small class="hint">Upload your .tsv or .db backup file</small></p>
-					<input type="file" id="file-stt" accept=".tsv,.db">
-					<div class="file-name" aria-live="polite"></div>
-				</div>
-				
-				<div class="drop-zone" id="zone-uhabits" role="button" tabindex="0" aria-label="Select uHabits backup">
-					<h4>uHabits Backup</h4>
-					<p><small class="hint">Upload your .backup or .db file</small></p>
-					<input type="file" id="file-uhabits" accept=".backup,.db">
-					<div class="file-name" aria-live="polite"></div>
-				</div>
-			</div>
-			
-			<!-- Minimum duration filter -->
-			<div class="filter-controls">
-				<label>
-					Minimum duration:
-					<input type="number" id="min-duration" value="5" min="0" step="1">
-					minutes
-				</label>
-			</div>
-			
+		<section id="action-stt-uhabits-fill" class="controls-block" style="display:none;">
+			<h3>SimpleTimeTracker → uHabits</h3>
+
 			<!-- Conversion mappings list -->
 			<div id="conversion-mappings">
 				<h4>Activity Mappings</h4>
@@ -107,39 +76,51 @@
 				</div>
 				<button id="add-mapping" type="button">+ Add Mapping</button>
 			</div>
-			
+
 			<!-- Summary -->
 			<div id="conversion-summary" class="summary-box" style="display: none;">
 				<!-- Summary content will be generated dynamically -->
 			</div>
 			
-			<!-- Convert button -->
 			<div class="controls">
 				<button id="btn-convert-stt" disabled>
-					Convert STT → uHabits
+					Fill
 				</button>
 			</div>
+		</section>
+
+		<div id="global-options">
+			<label for="include-watch-history">Include watch history:</label>
+			<input type="checkbox" id="include-watch-history" checked />
 		</div>
 
-		<div class="file-area" id="main-file-area">
-			<div class="drop-zone" id="zone-newpipe" role="button" tabindex="0" aria-label="Select NewPipe backup">
-				<h4>NewPipe Backup (.zip)</h4>
-				<p><small class="hint">Contains newpipe.db<br>click/drop file to upload</small></p>
-				<input type="file" id="file-newpipe" accept=".zip">
+		<section id="main-file-area" class="file-area">
+			<div class="drop-zone" id="zone-left" role="button" tabindex="0" aria-label="Select left file">
+				<button class="clear-file remove-button" aria-label="Clear file" style="display: none;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><!-- Icon from Lucide by Lucide Contributors - https://github.com/lucide-icons/lucide/blob/main/LICENSE --><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12"/></svg>
+				</button>
+				<h4 class="zone-title" data-merge="NewPipe Backup (.zip)" data-convert="NewPipe Backup (.zip)" data-stt="Simple Time Tracker (.backup)">NewPipe Backup (.zip)</h4>
+				<p><small class="hint zone-hint" data-merge="Contains newpipe.db<br>click/drop file to upload" data-convert="Contains newpipe.db<br>click/drop file to upload"
+						data-stt="Upload your .backup file<br>click/drop file to upload">Contains newpipe.db<br>click/drop file to upload</small></p>
+				<input type="file" id="file-left" data-merge=".zip" data-convert=".zip" data-stt=".backup" accept=".zip">
 				<div class="file-name" aria-live="polite"></div>
 			</div>
 
-			<div class="drop-zone" id="zone-libretube" role="button" tabindex="0" aria-label="Select LibreTube backup">
-				<h4>LibreTube Backup (.json)</h4>
-				<p><small class="hint">JSON export file<br>click/drop file to upload</small></p>
-				<input type="file" id="file-libretube" accept=".json">
+			<div class="drop-zone" id="zone-right" role="button" tabindex="0" aria-label="Select right file">
+				<button class="clear-file remove-button" aria-label="Clear file" style="display: none;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><!-- Icon from Lucide by Lucide Contributors - https://github.com/lucide-icons/lucide/blob/main/LICENSE --><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12"/></svg>
+				</button>
+				<h4 class="zone-title" data-merge="LibreTube Backup (.json)" data-convert="LibreTube Backup (.json)" data-stt="uHabits Backup (.db)">LibreTube Backup (.json)</h4>
+				<p><small class="hint zone-hint" data-merge="JSON export file<br>click/drop file to upload" data-convert="JSON export file<br>click/drop file to upload"
+						data-stt="Upload your .db file<br>click/drop file to upload">JSON export file<br>click/drop file to upload</small></p>
+				<input type="file" id="file-right" data-merge=".json" data-convert=".json" data-stt=".db" accept=".json">
 				<div class="file-name" aria-live="polite"></div>
 			</div>
-		</div>
+		</section>
 
 		<h3>Debug Log</h3>
 		<div id="debug-console">waiting for input...</div>
-	</div>
+		</div>
 </body>
 
 </html>

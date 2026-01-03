@@ -2,7 +2,7 @@ import JSZip from 'jszip';
 import type { Database, SqlJsStatic } from 'sql.js';
 import { DEFAULT_PREFERENCES, SERVICE_ID_YOUTUBE } from '../../constants';
 import { log } from '../../logger';
-import { createSchema, ensureStreamStateSchema } from '../../sqlHelper';
+import { createSchema, ensureStreamStateSchema, collectStreamStateDebug } from '../../sqlHelper';
 import type { LibreTubeBackup, LibreTubeHistoryItem, LibreTubeLocalPlaylist, LibreTubePlaylistBookmark, LibreTubeWatchPosition } from '../../types/libretube';
 import { downloadFile, extractVideoIdFromUrl, getTimestamp } from '../../utils';
 
@@ -36,19 +36,7 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 
 			try {
 				ensureStreamStateSchema(db);
-				try {
-					const ti = db.exec("PRAGMA table_info('stream_state')") || [];
-					const fk = db.exec("PRAGMA foreign_key_list('stream_state')") || [];
-					const create = db.exec("SELECT sql FROM sqlite_master WHERE type='table' AND name='stream_state'") || [];
-					streamStateDebug += 'PRAGMA table_info("stream_state"):\n';
-					if (ti.length > 0) streamStateDebug += JSON.stringify(ti[0], null, 2) + '\n';
-					streamStateDebug += '\nPRAGMA foreign_key_list("stream_state"):\n';
-					if (fk.length > 0) streamStateDebug += JSON.stringify(fk[0], null, 2) + '\n';
-					streamStateDebug += '\nCREATE statement:\n';
-					if (create.length > 0 && create[0].values && create[0].values.length > 0) streamStateDebug += create[0].values[0][0] + '\n';
-				} catch (e: any) {
-					streamStateDebug += 'Failed to collect stream_state debug info: ' + (e.message || e.toString()) + '\n';
-				}
+				streamStateDebug = collectStreamStateDebug(db);
 			} catch (e: any) {
 				log("Warning: failed to ensure stream_state schema: " + (e.message || e.toString()), "warn");
 			}
@@ -70,19 +58,7 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 		log("Creating new NewPipe database...");
 		db = new SQL.Database();
 		createSchema(db);
-		try {
-			const ti = db.exec("PRAGMA table_info('stream_state')") || [];
-			const fk = db.exec("PRAGMA foreign_key_list('stream_state')") || [];
-			const create = db.exec("SELECT sql FROM sqlite_master WHERE type='table' AND name='stream_state'") || [];
-			streamStateDebug += 'PRAGMA table_info("stream_state"):\n';
-			if (ti.length > 0) streamStateDebug += JSON.stringify(ti[0], null, 2) + '\n';
-			streamStateDebug += '\nPRAGMA foreign_key_list("stream_state"):\n';
-			if (fk.length > 0) streamStateDebug += JSON.stringify(fk[0], null, 2) + '\n';
-			streamStateDebug += '\nCREATE statement:\n';
-			if (create.length > 0 && create[0].values && create[0].values.length > 0) streamStateDebug += create[0].values[0][0] + '\n';
-		} catch (e: any) {
-			streamStateDebug += 'Failed to collect stream_state debug info (new DB): ' + (e.message || e.toString()) + '\n';
-		}
+		streamStateDebug = collectStreamStateDebug(db);
 	}
 
 	// 2. Load LibreTube Data

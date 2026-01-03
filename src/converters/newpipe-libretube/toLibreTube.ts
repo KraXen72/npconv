@@ -2,6 +2,7 @@ import JSZip from 'jszip';
 import type { SqlJsStatic } from 'sql.js';
 import { SERVICE_ID_YOUTUBE } from '../../constants';
 import { log } from '../../logger';
+import { collectStreamStateDebug } from '../../sqlHelper';
 import type { LibreTubeBackup, LibreTubeHistoryItem, LibreTubeLocalPlaylist, LibreTubePlaylistBookmark, LibreTubeVideo } from '../../types/libretube';
 import { clampToSafeInt, downloadFile, extractVideoIdFromUrl, formatUploadDate, getTimestamp, parseAccessDateToMs } from '../../utils';
 
@@ -74,17 +75,7 @@ export async function convertToLibreTube(npFile: File | undefined, ltFile: File 
 	log("NewPipe database loaded.");
 
 	try {
-		let streamStateDebugInput = '';
-		const ti = db.exec("PRAGMA table_info('stream_state')") || [];
-		const fk = db.exec("PRAGMA foreign_key_list('stream_state')") || [];
-		const create = db.exec("SELECT sql FROM sqlite_master WHERE type='table' AND name='stream_state'") || [];
-		streamStateDebugInput += 'PRAGMA table_info("stream_state"):\n';
-		if (ti.length > 0) streamStateDebugInput += JSON.stringify(ti[0], null, 2) + '\n';
-		streamStateDebugInput += '\nPRAGMA foreign_key_list("stream_state"):\n';
-		if (fk.length > 0) streamStateDebugInput += JSON.stringify(fk[0], null, 2) + '\n';
-		streamStateDebugInput += '\nCREATE statement:\n';
-		if (create.length > 0 && create[0].values && create[0].values.length > 0) streamStateDebugInput += create[0].values[0][0] + '\n';
-
+		const streamStateDebugInput = collectStreamStateDebug(db);
 		// Log the full, nicely formatted stream_state debug information to the debug console
 		// (do not download a separate debug file when converting NewPipe -> LibreTube)
 		log('Stream state debug (input NewPipe DB):\n' + (streamStateDebugInput || 'No stream_state debug info collected.'), 'schema');

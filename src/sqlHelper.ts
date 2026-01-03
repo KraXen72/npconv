@@ -103,3 +103,24 @@ export function ensureStreamStateSchema(db: Database) {
     log('Failed to ensure stream_state schema: ' + (e.message || e.toString()), 'err');
   }
 }
+
+export function collectStreamStateDebug(db: Database): string {
+	let debug = '';
+	try {
+		const ti = db.exec("PRAGMA table_info('stream_state')") || [];
+		const fk = db.exec("PRAGMA foreign_key_list('stream_state')") || [];
+		const create = db.exec("SELECT sql FROM sqlite_master WHERE type='table' AND name='stream_state'") || [];
+		
+		debug += 'PRAGMA table_info("stream_state"):\n';
+		if (ti.length > 0) debug += JSON.stringify(ti[0], null, 2) + '\n';
+		debug += '\nPRAGMA foreign_key_list("stream_state"):\n';
+		if (fk.length > 0) debug += JSON.stringify(fk[0], null, 2) + '\n';
+		debug += '\nCREATE statement:\n';
+		if (create.length > 0 && create[0].values && create[0].values.length > 0) {
+			debug += create[0].values[0][0] + '\n';
+		}
+	} catch (e: any) {
+		debug += 'Failed to collect stream_state debug info: ' + (e.message || e.toString()) + '\n';
+	}
+	return debug;
+}
