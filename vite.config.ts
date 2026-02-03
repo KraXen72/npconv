@@ -7,7 +7,7 @@ export default defineConfig({
   base: '/npconv/',
   root: process.cwd(),
   build: {
-    outDir: 'docs',
+    outDir: 'dist',
     sourcemap: true,
     rollupOptions: {
       input: path.resolve(process.cwd(), 'index.html')
