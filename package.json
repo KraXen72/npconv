@@ -13,7 +13,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@10.25.0",
   "devDependencies": {
     "@types/jszip": "^3.4.1",
     "@types/sql.js": "^1.4.9",
