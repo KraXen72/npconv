@@ -282,7 +282,7 @@ export async function exportToLibreTube(npFile: File, ltFile: File | undefined, 
 				// Normalize existing history into a list and map keyed by videoId so we can merge metadata
 				const existingHistory: LibreTubeHistoryItem[] = Array.isArray(targetData.watchHistory) ? targetData.watchHistory.map((e: LibreTubeHistoryItem) => ({
 					...e,
-					accessDate: parseAccessDateToMs((e && (e.accessDate || e.accessedAt || e.lastWatched || e.timestamp || e.date || e.time)) || 0)
+					accessDate: clampToSafeInt(parseAccessDateToMs((e && (e.accessDate || e.accessedAt || e.lastWatched || e.timestamp || e.date || e.time)) || 0))
 				})) : [];
 				const existingMap = new Map<string, LibreTubeHistoryItem>();
 				for (const e of existingHistory) if (e && e.videoId) existingMap.set(String(e.videoId), e);
@@ -317,7 +317,7 @@ export async function exportToLibreTube(npFile: File, ltFile: File | undefined, 
 					// If we already have an entry for this video, skip (prefer existing). Otherwise add full metadata entry.
 					if (existingMap.has(vid)) continue;
 
-					const accessMs = parseAccessDateToMs(accessDateRaw);
+					const accessMs = clampToSafeInt(parseAccessDateToMs(accessDateRaw));
 
 					existingHistory.push({
 						videoId: vid,
@@ -335,7 +335,11 @@ export async function exportToLibreTube(npFile: File, ltFile: File | undefined, 
 				// Sort watch history by access date descending (most recent first)
 				existingHistory.sort((a, b) => (Number(b && b.accessDate ? b.accessDate : 0)) - (Number(a && a.accessDate ? a.accessDate : 0)));
 
-				targetData.watchHistory = existingHistory;
+				const sanitizedHistory = existingHistory.map((entry) => {
+					const { accessDate, repeatCount, ...rest } = entry as Record<string, unknown>;
+					return rest as LibreTubeHistoryItem;
+				});
+				targetData.watchHistory = sanitizedHistory;
 			}
 		} catch (e: any) {
 			log('Failed to import watch history from NewPipe DB: ' + (e.message || e.toString()), 'warn');

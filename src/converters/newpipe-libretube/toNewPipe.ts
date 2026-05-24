@@ -37,7 +37,7 @@ function isNewPipeWatchedSentinel(value: unknown): boolean {
 
 	if (/^\d+$/.test(raw)) {
 		try {
-			return BigInt(raw) >= LIBRETUBE_WATCHED_POSITION_SENTINEL_BIGINT;
+			if (BigInt(raw) >= LIBRETUBE_WATCHED_POSITION_SENTINEL_BIGINT) return true;
 		} catch {
 			// Fall back to Number handling below.
 		}
@@ -61,17 +61,25 @@ function normalizeLibreTubePosition(value: unknown, vid: LibreTubeHistoryItem): 
 }
 
 function historyItemProgressTime(vid: LibreTubeHistoryItem, mappedPosition: unknown): number {
+	let progressTime: number;
+
 	if (mappedPosition !== undefined && mappedPosition !== null) {
-		return normalizeLibreTubePosition(mappedPosition, vid);
+		progressTime = normalizeLibreTubePosition(mappedPosition, vid);
+	} else {
+		const progressSeconds = vid.currentTime ?? vid.position ?? vid.progress;
+		if (progressSeconds !== undefined && progressSeconds !== null) {
+			if (isNewPipeWatchedSentinel(progressSeconds)) {
+				progressTime = completedProgressTime(vid);
+			} else {
+				const progress = Number(progressSeconds);
+				progressTime = Number.isFinite(progress) && progress > 0 ? Math.floor(progress * 1000) : 0;
+			}
+		} else {
+			progressTime = completedProgressTime(vid);
+		}
 	}
 
-	const progressSeconds = vid.currentTime ?? vid.position ?? vid.progress;
-	if (progressSeconds !== undefined && progressSeconds !== null) {
-		const progress = Number(progressSeconds);
-		return Number.isFinite(progress) && progress > 0 ? Math.floor(progress * 1000) : 0;
-	}
-
-	return completedProgressTime(vid);
+	return isNewPipeWatchedSentinel(progressTime) ? completedProgressTime(vid) : progressTime;
 }
 
 function libreTubeUploadDateSeconds(value: unknown): number | null {

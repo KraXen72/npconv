@@ -168,4 +168,84 @@ describe('shared schemas', () => {
 			notes: ''
 		}, 'uHabits repetition insert')).toThrow(/failed validation/);
 	});
+
+	test('feed_group_schema_matchesRoomExpectations', async () => {
+		const SQL = await initSqlJs();
+		const db = new SQL.Database();
+
+		try {
+			createSchema(db);
+			const tableInfo = db.exec('PRAGMA table_info("feed_group")')[0].values;
+			const indexList = db.exec('PRAGMA index_list("feed_group")')[0].values;
+			const indexInfo = db.exec('PRAGMA index_info("index_feed_group_sort_order")')[0].values;
+
+			expect(tableInfo).toEqual([
+				[0, 'uid', 'INTEGER', 1, null, 1],
+				[1, 'name', 'TEXT', 1, null, 0],
+				[2, 'icon_id', 'INTEGER', 1, null, 0],
+				[3, 'sort_order', 'INTEGER', 1, null, 0]
+			]);
+			expect(indexList.map(row => row[1])).toContain('index_feed_group_sort_order');
+			expect(indexInfo.map(row => row[2])).toEqual(['sort_order']);
+		} finally {
+			db.close();
+		}
+	});
+
+	test('feed_schema_matchesRoomExpectations', async () => {
+		const SQL = await initSqlJs();
+		const db = new SQL.Database();
+
+		try {
+			createSchema(db);
+			const tableInfo = db.exec('PRAGMA table_info("feed")')[0].values;
+			const foreignKeys = db.exec('PRAGMA foreign_key_list("feed")')[0].values;
+			const indexList = db.exec('PRAGMA index_list("feed")')[0].values;
+			const indexInfo = db.exec('PRAGMA index_info("index_feed_subscription_id")')[0].values;
+
+			expect(tableInfo).toEqual([
+				[0, 'stream_id', 'INTEGER', 1, null, 1],
+				[1, 'subscription_id', 'INTEGER', 1, null, 2]
+			]);
+
+			const sortedForeignKeys = [...foreignKeys]
+				.map(row => [row[2], row[3], row[4], row[5], row[6], row[7]])
+				.sort((a, b) => String(a[1]).localeCompare(String(b[1])));
+			expect(sortedForeignKeys).toEqual([
+				['streams', 'stream_id', 'uid', 'CASCADE', 'CASCADE', 'NONE'],
+				['subscriptions', 'subscription_id', 'uid', 'CASCADE', 'CASCADE', 'NONE']
+			]);
+			expect(indexList.map(row => row[1])).toContain('index_feed_subscription_id');
+			expect(indexInfo.map(row => row[2])).toEqual(['subscription_id']);
+		} finally {
+			db.close();
+		}
+	});
+
+	test('playlist_stream_join_schema_matchesRoomExpectations', async () => {
+		const SQL = await initSqlJs();
+		const db = new SQL.Database();
+
+		try {
+			createSchema(db);
+			const tableInfo = db.exec('PRAGMA table_info("playlist_stream_join")')[0].values;
+			const indexList = db.exec('PRAGMA index_list("playlist_stream_join")')[0].values;
+			const streamIndexInfo = db.exec('PRAGMA index_info("index_playlist_stream_join_stream_id")')[0].values;
+			const joinIndexInfo = db.exec('PRAGMA index_info("index_playlist_stream_join_playlist_id_join_index")')[0].values;
+
+			expect(tableInfo).toEqual([
+				[0, 'playlist_id', 'INTEGER', 1, null, 1],
+				[1, 'stream_id', 'INTEGER', 1, null, 0],
+				[2, 'join_index', 'INTEGER', 1, null, 2]
+			]);
+			expect(indexList.map(row => row[1])).toEqual(expect.arrayContaining([
+				'index_playlist_stream_join_stream_id',
+				'index_playlist_stream_join_playlist_id_join_index'
+			]));
+			expect(streamIndexInfo.map(row => row[2])).toEqual(['stream_id']);
+			expect(joinIndexInfo.map(row => row[2])).toEqual(['playlist_id', 'join_index']);
+		} finally {
+			db.close();
+		}
+	});
 });

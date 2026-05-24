@@ -139,6 +139,232 @@ function countLibreTubePlaylistVideos(backup: LibreTubeBackup): number {
 	return count;
 }
 
+function baseLibreTubeBackup(overrides: Partial<LibreTubeBackup> = {}): LibreTubeBackup {
+	return {
+		watchHistory: [],
+		watchPositions: [],
+		subscriptions: [],
+		playlistBookmarks: [],
+		localPlaylists: [],
+		preferences: [],
+		...overrides
+	};
+}
+
+function youtubeWatchUrl(videoId: string): string {
+	return `https://www.youtube.com/watch?v=${videoId}`;
+}
+
+function insertYoutubeStream(db: Database, {
+	uid,
+	videoId,
+	url,
+	title,
+	duration = 60,
+	uploader = 'Uploader',
+	uploadDate = null,
+	uploaderUrl = null,
+	thumbnailUrl = null
+}: {
+	uid: number;
+	videoId?: string;
+	url?: string;
+	title: string;
+	duration?: number;
+	uploader?: string;
+	uploadDate?: number | null;
+	uploaderUrl?: string | null;
+	thumbnailUrl?: string | null;
+}): string {
+	const streamUrl = url ?? youtubeWatchUrl(videoId || '');
+	db.run(
+		`INSERT INTO streams (uid, service_id, url, title, stream_type, duration, uploader, uploader_url, thumbnail_url, upload_date)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		[uid, SERVICE_ID_YOUTUBE, streamUrl, title, 'VIDEO_STREAM', duration, uploader, uploaderUrl, thumbnailUrl, uploadDate]
+	);
+	return streamUrl;
+}
+
+function insertStreamHistoryRow(db: Database, streamId: number, accessDate: number, repeatCount: number): void {
+	db.run(
+		'INSERT INTO stream_history (stream_id, access_date, repeat_count) VALUES (?, ?, ?)',
+		[streamId, accessDate, repeatCount]
+	);
+}
+
+function insertStreamStateRow(db: Database, streamId: number, progressTime: number): void {
+	db.run(
+		'INSERT INTO stream_state (stream_id, progress_time) VALUES (?, ?)',
+		[streamId, progressTime]
+	);
+}
+
+async function createNewPipeBackup(SQL: SqlJsStatic, seed: (db: Database) => void): Promise<File> {
+	const db = new SQL.Database();
+	createSchema(db);
+	seed(db);
+
+	const dbBytes = db.export();
+	db.close();
+
+	const zip = new JSZip();
+	zip.file('newpipe.db', dbBytes);
+	zip.file('preferences.json', '{}');
+	zip.file('newpipe.settings', new Uint8Array([1, 2, 3, 4]));
+
+	const backupBytes = await zip.generateAsync({ type: 'uint8array' });
+	return new File([backupBytes as any], 'newpipe-test.zip', { type: 'application/zip' });
+}
+
+async function convertLibreTubeBackupToNewPipe(
+	SQL: SqlJsStatic,
+	backup: LibreTubeBackup,
+	options: { mode?: 'convert' | 'merge'; npFile?: File; playlistBehavior?: string } = {}
+): Promise<NewPipeConversion> {
+	const libreTubeFile = jsonFile('libretube.json', backup);
+	const result = await exportToNewPipe(options.npFile, libreTubeFile, options.mode ?? 'convert', SQL, options.playlistBehavior);
+	return loadNewPipeConversionFromZip(SQL, result.data);
+}
+
+function collectNumericValues(value: unknown, acc: number[] = []): number[] {
+	if (typeof value === 'number' && Number.isFinite(value)) {
+		acc.push(value);
+		return acc;
+	}
+	if (Array.isArray(value)) {
+		for (const entry of value) collectNumericValues(entry, acc);
+		return acc;
+	}
+	if (value && typeof value === 'object') {
+		for (const entry of Object.values(value)) collectNumericValues(entry, acc);
+	}
+	return acc;
+}
+
+async function assertNewPipeDuplicatePlaylistMerge(
+	SQL: SqlJsStatic,
+	behavior: 'merge_lt_precedence' | 'merge_np_precedence',
+	expectedVideo: string,
+	expectedRemoteUrl: string
+): Promise<void> {
+	const newPipeFile = await createNewPipeBackup(SQL, (db) => {
+		insertYoutubeStream(db, { uid: 1, videoId: 'npVideo', title: 'NP Video' });
+		db.run(
+			'INSERT INTO playlists (uid, name, is_thumbnail_permanent, thumbnail_stream_id, display_index) VALUES (?, ?, ?, ?, ?)',
+			[10, 'Shared', 0, -1, 0]
+		);
+		db.run(
+			'INSERT INTO playlist_stream_join (playlist_id, stream_id, join_index) VALUES (?, ?, ?)',
+			[10, 1, 0]
+		);
+		db.run(
+			'INSERT INTO remote_playlists (uid, service_id, name, url, thumbnail_url, uploader, display_index, stream_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+			[20, SERVICE_ID_YOUTUBE, 'Shared Remote', 'https://www.youtube.com/playlist?list=NP', null, 'Uploader', 0, 1]
+		);
+	});
+
+	const libreTubeBackup = baseLibreTubeBackup({
+		localPlaylists: [
+			{
+				playlist: { id: 1, name: 'Shared', thumbnailUrl: '' },
+				videos: [
+					{
+						videoId: 'ltVideo',
+						title: 'LT Video',
+						uploader: 'Uploader',
+						duration: 60,
+						uploadDate: '2024-01-01',
+						thumbnailUrl: 'https://img.example.com/lt.jpg'
+					}
+				]
+			}
+		],
+		playlistBookmarks: [
+			{
+				playlistId: 'LT',
+				playlistName: 'Shared Remote',
+				url: 'https://www.youtube.com/playlist?list=LT',
+				videos: 1
+			}
+		]
+	});
+
+	const { db } = await convertLibreTubeBackupToNewPipe(SQL, libreTubeBackup, {
+		mode: 'merge',
+		npFile: newPipeFile,
+		playlistBehavior: behavior
+	});
+
+	try {
+		const playlistRow = firstRow(
+			db,
+			`
+				SELECT s.url
+				FROM playlists p
+				JOIN playlist_stream_join psj ON psj.playlist_id = p.uid
+				JOIN streams s ON s.uid = psj.stream_id
+				WHERE p.name = ?
+				ORDER BY psj.join_index
+				LIMIT 1
+			`,
+			['Shared']
+		);
+		const remoteRow = firstRow(
+			db,
+			'SELECT url FROM remote_playlists WHERE name = ?',
+			['Shared Remote']
+		);
+
+		expect(playlistRow).toEqual([youtubeWatchUrl(expectedVideo)]);
+		expect(remoteRow).toEqual([expectedRemoteUrl]);
+	} finally {
+		db.close();
+	}
+}
+
+async function assertLibreTubeDuplicatePlaylistMerge(
+	SQL: SqlJsStatic,
+	behavior: 'merge_lt_precedence' | 'merge_np_precedence',
+	expectedVideo: string
+): Promise<void> {
+	const newPipeFile = await createNewPipeBackup(SQL, (db) => {
+		insertYoutubeStream(db, { uid: 1, videoId: 'npVideo', title: 'NP Video' });
+		db.run(
+			'INSERT INTO playlists (uid, name, is_thumbnail_permanent, thumbnail_stream_id, display_index) VALUES (?, ?, ?, ?, ?)',
+			[10, 'Shared', 0, -1, 0]
+		);
+		db.run(
+			'INSERT INTO playlist_stream_join (playlist_id, stream_id, join_index) VALUES (?, ?, ?)',
+			[10, 1, 0]
+		);
+	});
+
+	const libreTubeBackup = baseLibreTubeBackup({
+		localPlaylists: [
+			{
+				playlist: { id: 1, name: 'Shared', thumbnailUrl: '' },
+				videos: [
+					{
+						videoId: 'ltVideo',
+						title: 'LT Video',
+						uploader: 'Uploader',
+						duration: 60,
+						uploadDate: '2024-01-01',
+						thumbnailUrl: 'https://img.example.com/lt.jpg'
+					}
+				]
+			}
+		]
+	});
+
+	const libreTubeFile = jsonFile('libretube.json', libreTubeBackup);
+	const result = await exportToLibreTube(newPipeFile, libreTubeFile, 'merge', SQL, behavior, true);
+	const backup: LibreTubeBackup = v.parse(LibreTubeBackupSchema, JSON.parse(result.jsonText));
+	const playlist = backup.localPlaylists.find(pl => pl.playlist.name === 'Shared');
+
+	expect(playlist?.videos[0].videoId).toBe(expectedVideo);
+}
+
 async function convertLibreTubeArtifactToNewPipe(SQL: SqlJsStatic): Promise<NewPipeConversion> {
 	const newPipeFile = await artifactFile(NEWPIPE_MERGE_BACKUP_PATH, 'application/zip');
 	const libreTubeFile = await artifactFile(LIBRETUBE_BACKUP_PATH, 'application/json');
@@ -248,6 +474,29 @@ describe('NewPipe/LibreTube conversion regressions', () => {
 					progressTime: expectedProgressMillis
 				}))
 			);
+		} finally {
+			db.close();
+		}
+	});
+
+	test('convertToNewPipe_mapsMaxSafeWatchPositionsToCompletedProgress', async () => {
+		const SQL = await initSqlJs();
+		const libreTubeText = await readFile(LIBRETUBE_BACKUP_PATH, 'utf8');
+		const libreTubeBackup = v.parse(LibreTubeBackupSchema, JSON.parse(libreTubeText));
+		const historyArray = libreTubeBackup.history || libreTubeBackup.watchHistory || libreTubeBackup.watch_history || libreTubeBackup.watch_history_items || [];
+		const maxSafeVideoId = 'vrP1ErHYeS0';
+		const historyItem = historyArray.find(item => item.videoId === maxSafeVideoId);
+
+		expect(historyItem?.duration).toBeDefined();
+		const expectedProgressMillis = Math.floor(Number(historyItem!.duration) * 1000);
+
+		const { db } = await convertLibreTubeArtifactToNewPipe(SQL);
+
+		try {
+			const progress = streamProgressByVideoId(db, maxSafeVideoId);
+
+			expect(progress.progressTime).toBe(expectedProgressMillis);
+			expect(progress.progressTime).not.toBe(Number.MAX_SAFE_INTEGER);
 		} finally {
 			db.close();
 		}
@@ -497,5 +746,610 @@ describe('NewPipe/LibreTube conversion regressions', () => {
 		} finally {
 			db.close();
 		}
+	});
+
+	test('convertToNewPipe_createsRequiredTablesAndSeedsRoomMasterTable', async () => {
+		const SQL = await initSqlJs();
+		const { db } = await convertLibreTubeBackupToNewPipe(SQL, baseLibreTubeBackup());
+
+		try {
+			const tables = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")[0].values;
+			const tableNames = tables.map(row => row[0]);
+			const required = [
+				'android_metadata',
+				'subscriptions',
+				'search_history',
+				'streams',
+				'stream_history',
+				'stream_state',
+				'playlist_stream_join',
+				'playlists',
+				'remote_playlists',
+				'feed',
+				'feed_group',
+				'feed_group_subscription_join',
+				'room_master_table'
+			];
+
+			expect(tableNames).toEqual(expect.arrayContaining(required));
+
+			const roomMasterRow = firstRow(db, 'SELECT id, identity_hash FROM room_master_table');
+			expect(roomMasterRow).toEqual([42, '7591e8039faa74d8c0517dc867af9d3e']);
+		} finally {
+			db.close();
+		}
+	});
+
+	test('convertToNewPipe_setsSubscriptionDefaults', async () => {
+		const SQL = await initSqlJs();
+		const channelId = 'UC123';
+		const url = `https://www.youtube.com/channel/${channelId}`;
+		const libreTubeBackup = baseLibreTubeBackup({
+			subscriptions: [
+				{
+					channelId,
+					url,
+					name: 'Example Channel'
+				}
+			]
+		});
+
+		const { db } = await convertLibreTubeBackupToNewPipe(SQL, libreTubeBackup);
+
+		try {
+			const row = firstRow(
+				db,
+				'SELECT subscriber_count, description, notification_mode FROM subscriptions WHERE url = ?',
+				[url]
+			);
+			expect(row).toEqual([0, '', 0]);
+		} finally {
+			db.close();
+		}
+	});
+
+	test('convertToNewPipe_mergesWatchHistoryByUrlAndMillisWindow', async () => {
+		const SQL = await initSqlJs();
+		const videoId = 'mergeVideo';
+		const accessSeconds = 1700000000;
+		const expectedAccessMs = accessSeconds * 1000;
+
+		const newPipeFile = await createNewPipeBackup(SQL, (db) => {
+			insertYoutubeStream(db, {
+				uid: 1,
+				videoId,
+				title: 'Merge Video'
+			});
+			insertStreamHistoryRow(db, 1, expectedAccessMs, 2);
+		});
+
+		const libreTubeBackup = baseLibreTubeBackup({
+			watchHistory: [
+				{
+					videoId,
+					title: 'Merge Video',
+					duration: 100,
+					accessDate: accessSeconds,
+					repeatCount: 3
+				},
+				{
+					url: `https://youtu.be/${videoId}`,
+					title: 'Merge Video',
+					duration: 100,
+					accessDate: accessSeconds + 0.5,
+					repeatCount: 1
+				}
+			]
+		});
+
+		const { db } = await convertLibreTubeBackupToNewPipe(SQL, libreTubeBackup, {
+			mode: 'merge',
+			npFile: newPipeFile
+		});
+
+		try {
+			const row = firstRow(db, 'SELECT access_date, repeat_count FROM stream_history WHERE stream_id = 1');
+			const count = firstRow(db, 'SELECT COUNT(*) FROM stream_history WHERE stream_id = 1');
+
+			expect(row).toEqual([expectedAccessMs, 6]);
+			expect(count).toEqual([1]);
+		} finally {
+			db.close();
+		}
+	});
+
+	test('convertToLibreTube_sortsWatchHistoryNewestFirst', async () => {
+		const SQL = await initSqlJs();
+		const newerVideo = 'newestVideo';
+		const olderVideo = 'olderVideo';
+
+		const newPipeFile = await createNewPipeBackup(SQL, (db) => {
+			insertYoutubeStream(db, { uid: 1, videoId: newerVideo, title: 'Newest', duration: 60 });
+			insertYoutubeStream(db, { uid: 2, videoId: olderVideo, title: 'Older', duration: 60 });
+			insertStreamHistoryRow(db, 1, 1700000005000, 1);
+			insertStreamHistoryRow(db, 2, 1700000000000, 1);
+		});
+
+		const result = await exportToLibreTube(newPipeFile, undefined, 'convert', SQL, undefined, true);
+		const backup: LibreTubeBackup = v.parse(LibreTubeBackupSchema, JSON.parse(result.jsonText));
+
+		expect(backup.watchHistory.map(item => item.videoId)).toEqual([newerVideo, olderVideo]);
+	});
+
+	test('convertToLibreTube_includesCompleteWatchHistoryMetadataWithoutExtras', async () => {
+		const SQL = await initSqlJs();
+		const videoId = 'metaVideo';
+
+		const newPipeFile = await createNewPipeBackup(SQL, (db) => {
+			insertYoutubeStream(db, {
+				uid: 1,
+				videoId,
+				title: 'Metadata Title',
+				duration: 120,
+				uploader: 'Metadata Uploader',
+				uploadDate: 20230424,
+				uploaderUrl: 'https://www.youtube.com/channel/UC_META',
+				thumbnailUrl: 'https://img.example.com/thumb.jpg'
+			});
+			insertStreamHistoryRow(db, 1, 1700000000000, 1);
+		});
+
+		const result = await exportToLibreTube(newPipeFile, undefined, 'convert', SQL, undefined, true);
+		const backup: LibreTubeBackup = v.parse(LibreTubeBackupSchema, JSON.parse(result.jsonText));
+		const entry = backup.watchHistory.find(item => item.videoId === videoId);
+
+		expect(entry).toMatchObject({
+			videoId,
+			title: 'Metadata Title',
+			uploadDate: '2023-04-24',
+			uploader: 'Metadata Uploader',
+			uploaderUrl: 'UC_META',
+			uploaderAvatar: '',
+			thumbnailUrl: 'https://img.example.com/thumb.jpg',
+			duration: 120
+		});
+		expect(entry).not.toHaveProperty('repeatCount');
+		expect(entry).not.toHaveProperty('accessDate');
+	});
+
+	test('convertToLibreTube_formatsUploadDatesToIsoDates', async () => {
+		const SQL = await initSqlJs();
+		const secondsId = 'uploadSeconds';
+		const millisId = 'uploadMillis';
+		const ymdId = 'uploadYmd';
+		const uploadSeconds = 1700000000;
+		const uploadMillis = 1700000000000;
+		const uploadYmd = 20230424;
+
+		const newPipeFile = await createNewPipeBackup(SQL, (db) => {
+			insertYoutubeStream(db, {
+				uid: 1,
+				videoId: secondsId,
+				title: 'Seconds Upload',
+				duration: 60,
+				uploadDate: uploadSeconds
+			});
+			insertYoutubeStream(db, {
+				uid: 2,
+				videoId: millisId,
+				title: 'Millis Upload',
+				duration: 60,
+				uploadDate: uploadMillis
+			});
+			insertYoutubeStream(db, {
+				uid: 3,
+				videoId: ymdId,
+				title: 'YMD Upload',
+				duration: 60,
+				uploadDate: uploadYmd
+			});
+			insertStreamHistoryRow(db, 1, 1700000000000, 1);
+			insertStreamHistoryRow(db, 2, 1700000001000, 1);
+			insertStreamHistoryRow(db, 3, 1700000002000, 1);
+		});
+
+		const result = await exportToLibreTube(newPipeFile, undefined, 'convert', SQL, undefined, true);
+		const backup: LibreTubeBackup = v.parse(LibreTubeBackupSchema, JSON.parse(result.jsonText));
+		const entryById = new Map(backup.watchHistory.map(item => [item.videoId, item]));
+
+		const expectedSeconds = new Date(uploadSeconds * 1000).toISOString().split('T')[0];
+		const expectedMillis = new Date(uploadMillis).toISOString().split('T')[0];
+
+		expect(entryById.get(secondsId)?.uploadDate).toBe(expectedSeconds);
+		expect(entryById.get(millisId)?.uploadDate).toBe(expectedMillis);
+		expect(entryById.get(ymdId)?.uploadDate).toBe('2023-04-24');
+	});
+
+	test('convertToLibreTube_ensuresPlaylistItemIdsAreNumeric', async () => {
+		const SQL = await initSqlJs();
+		const playlistName = 'Numeric IDs';
+		const videoId = 'playlistVideo';
+
+		const newPipeFile = await createNewPipeBackup(SQL, (db) => {
+			insertYoutubeStream(db, { uid: 1, videoId, title: 'Playlist Video', duration: 60 });
+			db.run(
+				'INSERT INTO playlists (uid, name, is_thumbnail_permanent, thumbnail_stream_id, display_index) VALUES (?, ?, ?, ?, ?)',
+				[10, playlistName, 0, -1, 0]
+			);
+			db.run(
+				'INSERT INTO playlist_stream_join (playlist_id, stream_id, join_index) VALUES (?, ?, ?)',
+				[10, 1, 0]
+			);
+		});
+
+		const result = await exportToLibreTube(newPipeFile, undefined, 'convert', SQL, undefined, true);
+		const backup: LibreTubeBackup = v.parse(LibreTubeBackupSchema, JSON.parse(result.jsonText));
+		const playlist = backup.localPlaylists.find(pl => pl.playlist.name === playlistName);
+
+		expect(playlist?.videos.length).toBe(1);
+		expect(typeof playlist?.videos[0].id).toBe('number');
+		expect(Number.isInteger(playlist?.videos[0].id)).toBe(true);
+	});
+
+	test('convertToNewPipe_setsPlaylistThumbnailFromFirstVideo', async () => {
+		const SQL = await initSqlJs();
+		const playlistName = 'LT Playlist';
+		const libreTubeBackup = baseLibreTubeBackup({
+			localPlaylists: [
+				{
+					playlist: { id: 1, name: playlistName, thumbnailUrl: '' },
+					videos: [
+						{
+							videoId: 'firstVideo',
+							title: 'First Video',
+							uploader: 'Uploader',
+							duration: 60,
+							uploadDate: '2024-01-01',
+							thumbnailUrl: 'https://img.example.com/first.jpg'
+						},
+						{
+							videoId: 'secondVideo',
+							title: 'Second Video',
+							uploader: 'Uploader',
+							duration: 60,
+							uploadDate: '2024-01-02',
+							thumbnailUrl: 'https://img.example.com/second.jpg'
+						}
+					]
+				}
+			]
+		});
+
+		const { db } = await convertLibreTubeBackupToNewPipe(SQL, libreTubeBackup);
+
+		try {
+			const row = firstRow(
+				db,
+				`
+					SELECT p.thumbnail_stream_id, psj.stream_id
+					FROM playlists p
+					JOIN playlist_stream_join psj ON psj.playlist_id = p.uid
+					WHERE p.name = ? AND psj.join_index = 0
+				`,
+				[playlistName]
+			);
+
+			expect(row[0]).toBe(row[1]);
+			expect(row[0]).toBeGreaterThan(0);
+		} finally {
+			db.close();
+		}
+	});
+
+	test('convertToNewPipe_playlistBehavior_onlyLibretubeOverwritesPlaylists', async () => {
+		const SQL = await initSqlJs();
+		const newPipeFile = await createNewPipeBackup(SQL, (db) => {
+			insertYoutubeStream(db, { uid: 1, videoId: 'npVideo', title: 'NP Video' });
+			db.run(
+				'INSERT INTO playlists (uid, name, is_thumbnail_permanent, thumbnail_stream_id, display_index) VALUES (?, ?, ?, ?, ?)',
+				[10, 'NP Playlist', 0, -1, 0]
+			);
+			db.run(
+				'INSERT INTO playlist_stream_join (playlist_id, stream_id, join_index) VALUES (?, ?, ?)',
+				[10, 1, 0]
+			);
+			db.run(
+				'INSERT INTO remote_playlists (uid, service_id, name, url, thumbnail_url, uploader, display_index, stream_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+				[20, SERVICE_ID_YOUTUBE, 'NP Remote', 'https://www.youtube.com/playlist?list=NP', null, 'Uploader', 0, 1]
+			);
+		});
+
+		const libreTubeBackup = baseLibreTubeBackup({
+			localPlaylists: [
+				{
+					playlist: { id: 1, name: 'LT Playlist', thumbnailUrl: '' },
+					videos: [
+						{
+							videoId: 'ltVideo',
+							title: 'LT Video',
+							uploader: 'Uploader',
+							duration: 60,
+							uploadDate: '2024-01-01',
+							thumbnailUrl: 'https://img.example.com/lt.jpg'
+						}
+					]
+				}
+			],
+			playlistBookmarks: [
+				{
+					playlistId: 'LT',
+					playlistName: 'LT Remote',
+					url: 'https://www.youtube.com/playlist?list=LT',
+					videos: 1
+				}
+			]
+		});
+
+		const { db } = await convertLibreTubeBackupToNewPipe(SQL, libreTubeBackup, {
+			mode: 'merge',
+			npFile: newPipeFile,
+			playlistBehavior: 'only_libretube'
+		});
+
+		try {
+			const playlists = db.exec('SELECT name FROM playlists')[0].values.map(row => row[0]);
+			const remotes = db.exec('SELECT name FROM remote_playlists')[0].values.map(row => row[0]);
+
+			expect(playlists).toEqual(['LT Playlist']);
+			expect(remotes).toEqual(['LT Remote']);
+		} finally {
+			db.close();
+		}
+	});
+
+	test('convertToNewPipe_playlistBehavior_onlyNewpipePreservesPlaylists', async () => {
+		const SQL = await initSqlJs();
+		const newPipeFile = await createNewPipeBackup(SQL, (db) => {
+			insertYoutubeStream(db, { uid: 1, videoId: 'npVideo', title: 'NP Video' });
+			db.run(
+				'INSERT INTO playlists (uid, name, is_thumbnail_permanent, thumbnail_stream_id, display_index) VALUES (?, ?, ?, ?, ?)',
+				[10, 'NP Playlist', 0, -1, 0]
+			);
+			db.run(
+				'INSERT INTO playlist_stream_join (playlist_id, stream_id, join_index) VALUES (?, ?, ?)',
+				[10, 1, 0]
+			);
+			db.run(
+				'INSERT INTO remote_playlists (uid, service_id, name, url, thumbnail_url, uploader, display_index, stream_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+				[20, SERVICE_ID_YOUTUBE, 'NP Remote', 'https://www.youtube.com/playlist?list=NP', null, 'Uploader', 0, 1]
+			);
+		});
+
+		const libreTubeBackup = baseLibreTubeBackup({
+			localPlaylists: [
+				{
+					playlist: { id: 1, name: 'LT Playlist', thumbnailUrl: '' },
+					videos: [
+						{
+							videoId: 'ltVideo',
+							title: 'LT Video',
+							uploader: 'Uploader',
+							duration: 60,
+							uploadDate: '2024-01-01',
+							thumbnailUrl: 'https://img.example.com/lt.jpg'
+						}
+					]
+				}
+			],
+			playlistBookmarks: [
+				{
+					playlistId: 'LT',
+					playlistName: 'LT Remote',
+					url: 'https://www.youtube.com/playlist?list=LT',
+					videos: 1
+				}
+			]
+		});
+
+		const { db } = await convertLibreTubeBackupToNewPipe(SQL, libreTubeBackup, {
+			mode: 'merge',
+			npFile: newPipeFile,
+			playlistBehavior: 'only_newpipe'
+		});
+
+		try {
+			const playlists = db.exec('SELECT name FROM playlists')[0].values.map(row => row[0]);
+			const remotes = db.exec('SELECT name FROM remote_playlists')[0].values.map(row => row[0]);
+
+			expect(playlists).toEqual(['NP Playlist']);
+			expect(remotes).toEqual(['NP Remote']);
+		} finally {
+			db.close();
+		}
+	});
+
+	test('convertToNewPipe_playlistBehavior_mergeLtPrecedence_resolvesDuplicates', async () => {
+		const SQL = await initSqlJs();
+		await assertNewPipeDuplicatePlaylistMerge(SQL, 'merge_lt_precedence', 'ltVideo', 'https://www.youtube.com/playlist?list=LT');
+	});
+
+	test('convertToNewPipe_playlistBehavior_mergeNpPrecedence_resolvesDuplicates', async () => {
+		const SQL = await initSqlJs();
+		await assertNewPipeDuplicatePlaylistMerge(SQL, 'merge_np_precedence', 'npVideo', 'https://www.youtube.com/playlist?list=NP');
+	});
+
+	test('convertToLibreTube_playlistBehavior_onlyNewpipeReplacesTargetPlaylists', async () => {
+		const SQL = await initSqlJs();
+		const newPipeFile = await createNewPipeBackup(SQL, (db) => {
+			insertYoutubeStream(db, { uid: 1, videoId: 'npVideo', title: 'NP Video' });
+			db.run(
+				'INSERT INTO playlists (uid, name, is_thumbnail_permanent, thumbnail_stream_id, display_index) VALUES (?, ?, ?, ?, ?)',
+				[10, 'NP Playlist', 0, -1, 0]
+			);
+			db.run(
+				'INSERT INTO playlist_stream_join (playlist_id, stream_id, join_index) VALUES (?, ?, ?)',
+				[10, 1, 0]
+			);
+			db.run(
+				'INSERT INTO remote_playlists (uid, service_id, name, url, thumbnail_url, uploader, display_index, stream_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+				[20, SERVICE_ID_YOUTUBE, 'NP Remote', 'https://www.youtube.com/playlist?list=NP', null, 'Uploader', 0, 1]
+			);
+		});
+
+		const libreTubeBackup = baseLibreTubeBackup({
+			localPlaylists: [
+				{
+					playlist: { id: 1, name: 'LT Playlist', thumbnailUrl: '' },
+					videos: [
+						{
+							videoId: 'ltVideo',
+							title: 'LT Video',
+							uploader: 'Uploader',
+							duration: 60,
+							uploadDate: '2024-01-01',
+							thumbnailUrl: 'https://img.example.com/lt.jpg'
+						}
+					]
+				}
+			],
+			playlistBookmarks: [
+				{
+					playlistId: 'LT',
+					playlistName: 'LT Remote',
+					url: 'https://www.youtube.com/playlist?list=LT',
+					videos: 1
+				}
+			]
+		});
+
+		const libreTubeFile = jsonFile('libretube.json', libreTubeBackup);
+		const result = await exportToLibreTube(newPipeFile, libreTubeFile, 'merge', SQL, 'only_newpipe', true);
+		const backup: LibreTubeBackup = v.parse(LibreTubeBackupSchema, JSON.parse(result.jsonText));
+
+		expect(backup.localPlaylists.map(pl => pl.playlist.name)).toEqual(['NP Playlist']);
+		expect(backup.playlistBookmarks.map(pl => pl.playlistName || pl.name)).toEqual(['NP Remote']);
+	});
+
+	test('convertToLibreTube_playlistBehavior_onlyLibretubePreservesTargetPlaylists', async () => {
+		const SQL = await initSqlJs();
+		const newPipeFile = await createNewPipeBackup(SQL, (db) => {
+			insertYoutubeStream(db, { uid: 1, videoId: 'npVideo', title: 'NP Video' });
+			db.run(
+				'INSERT INTO playlists (uid, name, is_thumbnail_permanent, thumbnail_stream_id, display_index) VALUES (?, ?, ?, ?, ?)',
+				[10, 'NP Playlist', 0, -1, 0]
+			);
+			db.run(
+				'INSERT INTO playlist_stream_join (playlist_id, stream_id, join_index) VALUES (?, ?, ?)',
+				[10, 1, 0]
+			);
+		});
+
+		const libreTubeBackup = baseLibreTubeBackup({
+			localPlaylists: [
+				{
+					playlist: { id: 1, name: 'LT Playlist', thumbnailUrl: '' },
+					videos: [
+						{
+							videoId: 'ltVideo',
+							title: 'LT Video',
+							uploader: 'Uploader',
+							duration: 60,
+							uploadDate: '2024-01-01',
+							thumbnailUrl: 'https://img.example.com/lt.jpg'
+						}
+					]
+				}
+			]
+		});
+
+		const libreTubeFile = jsonFile('libretube.json', libreTubeBackup);
+		const result = await exportToLibreTube(newPipeFile, libreTubeFile, 'merge', SQL, 'only_libretube', true);
+		const backup: LibreTubeBackup = v.parse(LibreTubeBackupSchema, JSON.parse(result.jsonText));
+
+		expect(backup.localPlaylists.map(pl => pl.playlist.name)).toEqual(['LT Playlist']);
+	});
+
+	test('convertToLibreTube_playlistBehavior_mergeLtPrecedence_resolvesDuplicates', async () => {
+		const SQL = await initSqlJs();
+		await assertLibreTubeDuplicatePlaylistMerge(SQL, 'merge_lt_precedence', 'ltVideo');
+	});
+
+	test('convertToLibreTube_playlistBehavior_mergeNpPrecedence_resolvesDuplicates', async () => {
+		const SQL = await initSqlJs();
+		await assertLibreTubeDuplicatePlaylistMerge(SQL, 'merge_np_precedence', 'npVideo');
+	});
+
+	test('convertToLibreTube_includeWatchHistoryFalse_preservesTargetHistoryOnMerge', async () => {
+		const SQL = await initSqlJs();
+		const newPipeFile = await createNewPipeBackup(SQL, (db) => {
+			insertYoutubeStream(db, { uid: 1, videoId: 'npVideo', title: 'NP Video' });
+			insertStreamHistoryRow(db, 1, 1700000000000, 1);
+			insertStreamStateRow(db, 1, 5000);
+		});
+
+		const libreTubeBackup = baseLibreTubeBackup({
+			watchHistory: [
+				{
+					videoId: 'ltVideo',
+					title: 'LT Video',
+					uploadDate: '2024-01-01',
+					uploader: 'Uploader',
+					uploaderUrl: 'UC_LT',
+					uploaderAvatar: '',
+					thumbnailUrl: 'https://img.example.com/lt.jpg',
+					duration: 60
+				}
+			],
+			watchPositions: [
+				{
+					videoId: 'ltVideo',
+					position: 1234
+				}
+			]
+		});
+
+		const libreTubeFile = jsonFile('libretube.json', libreTubeBackup);
+		const result = await exportToLibreTube(newPipeFile, libreTubeFile, 'merge', SQL, undefined, false);
+		const backup: LibreTubeBackup = v.parse(LibreTubeBackupSchema, JSON.parse(result.jsonText));
+
+		expect(backup.watchHistory).toEqual(libreTubeBackup.watchHistory);
+		expect(backup.watchPositions).toEqual(libreTubeBackup.watchPositions);
+	});
+
+	test('convertToLibreTube_includeWatchHistoryFalse_skipsHistoryOnGenerate', async () => {
+		const SQL = await initSqlJs();
+		const newPipeFile = await createNewPipeBackup(SQL, (db) => {
+			insertYoutubeStream(db, { uid: 1, videoId: 'npVideo', title: 'NP Video' });
+			insertStreamHistoryRow(db, 1, 1700000000000, 1);
+			insertStreamStateRow(db, 1, 5000);
+		});
+
+		const result = await exportToLibreTube(newPipeFile, undefined, 'convert', SQL, undefined, false);
+		const backup: LibreTubeBackup = v.parse(LibreTubeBackupSchema, JSON.parse(result.jsonText));
+
+		expect(backup.watchHistory.length).toBe(0);
+		expect(backup.watchPositions.length).toBe(0);
+	});
+
+	test('convertToLibreTube_clampsAllNumericFieldsToSafeIntegers', async () => {
+		const SQL = await initSqlJs();
+		const overflow = Number.MAX_SAFE_INTEGER + 1;
+
+		const newPipeFile = await createNewPipeBackup(SQL, (db) => {
+			insertYoutubeStream(db, {
+				uid: 1,
+				videoId: 'overflowVideo',
+				title: 'Overflow Video',
+				duration: overflow,
+				uploadDate: 1700000000000
+			});
+			insertStreamHistoryRow(db, 1, overflow, 1);
+			insertStreamStateRow(db, 1, overflow);
+			db.run(
+				'INSERT INTO playlists (uid, name, is_thumbnail_permanent, thumbnail_stream_id, display_index) VALUES (?, ?, ?, ?, ?)',
+				[overflow, 'Overflow Playlist', 0, -1, 0]
+			);
+			db.run(
+				'INSERT INTO playlist_stream_join (playlist_id, stream_id, join_index) VALUES (?, ?, ?)',
+				[overflow, 1, 0]
+			);
+		});
+
+		const result = await exportToLibreTube(newPipeFile, undefined, 'convert', SQL, undefined, true);
+		const backup: LibreTubeBackup = v.parse(LibreTubeBackupSchema, JSON.parse(result.jsonText));
+		const numericValues = collectNumericValues(backup);
+
+		expect(numericValues.length).toBeGreaterThan(0);
+		expect(numericValues.every(value => Number.isSafeInteger(value) && Math.abs(value) <= Number.MAX_SAFE_INTEGER)).toBe(true);
 	});
 });
