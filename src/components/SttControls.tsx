@@ -1,7 +1,7 @@
 import { createSignal, For, onMount, onCleanup, createEffect, type Component } from 'solid-js';
 import { MappingItem } from './MappingItem';
 import type { SttStore } from '../stores/sttStore';
-import type { ConversionMapping } from '../types/uhabits';
+import type { ConversionMapping } from '../schemas/uhabits';
 
 interface Props {
   disabled: boolean;

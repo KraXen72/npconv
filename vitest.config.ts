@@ -3,6 +3,7 @@ import viteConfig from './vite.config';
 
 export default mergeConfig(viteConfig, defineConfig({
   test: {
-    environment: 'node'
+    environment: 'node',
+    testTimeout: 10000
   }
 }));

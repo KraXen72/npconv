@@ -1,0 +1,97 @@
+import type { Database } from 'sql.js';
+import * as v from 'valibot';
+import { createInsertSchema, createSelectSchema } from 'drizzle-valibot';
+import { habits, repetitions } from '../db/uhabitsTables';
+import { IntegerSchema } from './sql';
+
+const integerColumn = () => IntegerSchema;
+
+export type UHabitsHabitDb = typeof habits.$inferSelect;
+export type UHabitsRepetitionDb = typeof repetitions.$inferSelect;
+export type UHabitsRepetitionInsert = Pick<UHabitsRepetitionDb, 'habitId' | 'timestamp' | 'value' | 'notes'>;
+
+export type UHabitsHabit = Pick<UHabitsHabitDb, 'id' | 'name' | 'question' | 'color' | 'archived' | 'type' | 'position' | 'highlight' | 'unit' | 'description' | 'uuid'> & {
+	freq_num: UHabitsHabitDb['freqNum'];
+	freq_den: UHabitsHabitDb['freqDen'];
+	reminder_hour: UHabitsHabitDb['reminderHour'];
+	reminder_min: UHabitsHabitDb['reminderMin'];
+	reminder_days: UHabitsHabitDb['reminderDays'];
+	target_type: UHabitsHabitDb['targetType'];
+	target_value: UHabitsHabitDb['targetValue'];
+};
+
+export type UHabitsRepetition = Pick<UHabitsRepetitionDb, 'id' | 'timestamp' | 'value' | 'notes'> & {
+	habit_id: UHabitsRepetitionDb['habitId'];
+};
+
+export const UHabitsHabitDbSchema = createSelectSchema(habits, {
+	id: integerColumn,
+	archived: integerColumn,
+	color: integerColumn,
+	freqDen: integerColumn,
+	freqNum: integerColumn,
+	highlight: integerColumn,
+	position: integerColumn,
+	reminderHour: integerColumn,
+	reminderMin: integerColumn,
+	reminderDays: integerColumn,
+	type: integerColumn,
+	targetType: integerColumn
+});
+
+export const UHabitsHabitSchema: v.GenericSchema<unknown, UHabitsHabit> = v.object({
+	id: IntegerSchema,
+	name: v.string(),
+	question: v.string(),
+	color: IntegerSchema,
+	archived: IntegerSchema,
+	type: IntegerSchema,
+	freq_num: IntegerSchema,
+	freq_den: IntegerSchema,
+	position: IntegerSchema,
+	highlight: IntegerSchema,
+	reminder_hour: IntegerSchema,
+	reminder_min: IntegerSchema,
+	reminder_days: IntegerSchema,
+	target_type: IntegerSchema,
+	target_value: v.number(),
+	unit: v.string(),
+	description: v.nullable(v.string()),
+	uuid: v.nullable(v.string())
+});
+
+export const UHabitsRepetitionDbSchema = createSelectSchema(repetitions, {
+	id: integerColumn,
+	habitId: integerColumn,
+	timestamp: integerColumn,
+	value: integerColumn
+});
+
+export const UHabitsRepetitionSchema: v.GenericSchema<unknown, UHabitsRepetition> = v.object({
+	id: IntegerSchema,
+	habit_id: IntegerSchema,
+	timestamp: IntegerSchema,
+	value: IntegerSchema,
+	notes: v.nullable(v.string())
+});
+
+export const UHabitsRepetitionInsertSchema: v.GenericSchema<unknown, UHabitsRepetitionInsert> = v.pick(createSelectSchema(repetitions, {
+	habitId: integerColumn,
+	timestamp: integerColumn,
+	value: integerColumn
+}), ['habitId', 'timestamp', 'value', 'notes']);
+
+export interface ParsedUHabitsBackup {
+	db: Database;
+	allHabits: Map<number, UHabitsHabit>;
+	booleanHabits: Map<number, UHabitsHabit>;
+	repetitions: UHabitsRepetition[];
+}
+
+export const ConversionMappingSchema = v.object({
+	sttTypeId: IntegerSchema,
+	uhabitsHabitId: IntegerSchema,
+	minDuration: v.optional(v.number()),
+	copySttComments: v.optional(v.boolean())
+});
+export type ConversionMapping = v.InferOutput<typeof ConversionMappingSchema>;

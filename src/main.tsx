@@ -11,8 +11,10 @@ let SQL: SqlJsStatic | undefined;
 // --- Initialization ---
 async function init() {
   log("Initializing SQL.js...");
+  let sql: SqlJsStatic;
   try {
-    SQL = await initSqlJs();
+    sql = await initSqlJs();
+    SQL = sql;
     log("SQL.js ready.");
   } catch (e: unknown) {
     const errorMsg = e instanceof Error ? e.message : String(e);
@@ -30,9 +32,8 @@ async function init() {
     throw new Error(errorMsg);
   }
   
-  render(() => <App SQL={SQL} />, root);
+  render(() => <App SQL={sql} />, root);
 }
 
 init();
-
 

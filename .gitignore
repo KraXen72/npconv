@@ -3,3 +3,5 @@ node_modules/
 *.log
 .DS_Store
 dist/
+/fixtures/before-newpipe_converted*.zip
+/fixtures/after-newpipe_converted*.zip

@@ -1,7 +1,7 @@
 import { createSignal } from 'solid-js';
 import type { SqlJsStatic } from 'sql.js';
-import type { ParsedSttBackup } from '../types/stt';
-import type { ParsedUHabitsBackup } from '../types/uhabits';
+import type { ParsedSttBackup } from '../schemas/stt';
+import type { ParsedUHabitsBackup } from '../schemas/uhabits';
 import { parseSttBackup } from '../converters/stt-uhabits/sttParser';
 import { parseUHabitsBackup } from '../converters/stt-uhabits/uhabitsHelper';
 import { log } from '../logger';
