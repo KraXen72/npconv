@@ -23,6 +23,7 @@ import {
 import { selectRows } from '../../db/sqljs';
 import { findPlaylistIdByName, findRemotePlaylistIdByUrlOrName, findStreamIdByServiceUrl } from '../../db/newpipeRepo';
 import { SERVICE_ID_YOUTUBE } from '../../constants';
+import { extractVideoIdFromUrl } from '../../utils';
 
 const FIXTURES_DIR = path.resolve(process.cwd(), 'fixtures');
 const LEGACY_ARTIFACTS_DIR = path.resolve(process.cwd(), '_artifacts');
@@ -126,6 +127,16 @@ function streamProgressByVideoId(db: Database, videoId: string): StreamProgress 
 		duration: Number(row[0]),
 		progressTime: Number(row[1])
 	};
+}
+
+function countLibreTubePlaylistVideos(backup: LibreTubeBackup): number {
+	let count = 0;
+	for (const playlist of backup.localPlaylists ?? []) {
+		for (const video of playlist.videos) {
+			if (video.videoId || (video.url && extractVideoIdFromUrl(video.url))) count++;
+		}
+	}
+	return count;
 }
 
 async function convertLibreTubeArtifactToNewPipe(SQL: SqlJsStatic): Promise<NewPipeConversion> {
@@ -465,6 +476,24 @@ describe('NewPipe/LibreTube conversion regressions', () => {
 			);
 			expect(selectRows(db, 'SELECT progress_time, stream_id FROM stream_state', NewPipeStreamStateInsertSchema).length).toBeGreaterThan(0);
 			expect(selectRows(db, 'SELECT stream_id, access_date, repeat_count FROM stream_history', NewPipeStreamHistoryInsertSchema).length).toBeGreaterThan(0);
+		} finally {
+			db.close();
+		}
+	});
+
+	test('convertToNewPipe_preservesAllLocalPlaylistVideosWithRelativeUploadDates', async () => {
+		const SQL = await initSqlJs();
+		const libreTubeText = await readFile(LIBRETUBE_BACKUP_PATH, 'utf8');
+		const libreTubeBackup = v.parse(LibreTubeBackupSchema, JSON.parse(libreTubeText));
+		const libreTubeFile = jsonFile('libretube.json', libreTubeBackup);
+		const result = await exportToNewPipe(undefined, libreTubeFile, 'convert', SQL);
+		const { db } = await loadNewPipeConversionFromZip(SQL, result.data);
+
+		try {
+			const expectedPlaylistVideos = countLibreTubePlaylistVideos(libreTubeBackup);
+			const actualPlaylistJoins = Number(firstRow(db, 'SELECT count(*) FROM playlist_stream_join')[0]);
+
+			expect(actualPlaylistJoins).toBe(expectedPlaylistVideos);
 		} finally {
 			db.close();
 		}

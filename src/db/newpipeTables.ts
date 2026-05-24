@@ -62,8 +62,7 @@ export const playlistStreamJoin = sqliteTable('playlist_stream_join', {
 	join_index: integer('join_index').notNull()
 }, (table) => [
 	primaryKey({ columns: [table.playlist_id, table.join_index] }),
-	index('index_playlist_stream_join_stream_id').on(table.stream_id),
-	uniqueIndex('index_playlist_stream_join_playlist_id_join_index').on(table.playlist_id, table.join_index)
+	index('index_playlist_stream_join_stream_id').on(table.stream_id)
 ]);
 
 export const remotePlaylists = sqliteTable('remote_playlists', {

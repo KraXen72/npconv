@@ -25,7 +25,9 @@ export const habits = sqliteTable('Habits', {
 
 export const repetitions = sqliteTable('Repetitions', {
 	id: integer('id').primaryKey({ autoIncrement: true }).notNull(),
-	habitId: integer('habit').notNull().references(() => habits.id),
+	habitId: integer('habit')
+		.notNull()
+		.references(() => habits.id, { onUpdate: 'cascade', onDelete: 'cascade' }),
 	timestamp: integer('timestamp').notNull(),
 	value: integer('value').notNull(),
 	notes: text('notes')

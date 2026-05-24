@@ -74,6 +74,23 @@ function historyItemProgressTime(vid: LibreTubeHistoryItem, mappedPosition: unkn
 	return completedProgressTime(vid);
 }
 
+function libreTubeUploadDateSeconds(value: unknown): number | null {
+	if (value === undefined || value === null || value === '') return null;
+
+	if (typeof value === 'number') {
+		return Number.isFinite(value) ? Math.floor(value) : null;
+	}
+
+	const raw = String(value).trim();
+	if (!raw) return null;
+
+	const numeric = Number(raw);
+	if (Number.isFinite(numeric)) return Math.floor(numeric);
+
+	const parsed = Date.parse(raw);
+	return Number.isFinite(parsed) ? Math.floor(parsed / 1000) : null;
+}
+
 export interface NewPipeExportResult {
 	data: Uint8Array;
 	filename: string;
@@ -245,7 +262,7 @@ export async function exportToNewPipe(npFile: File | undefined, ltFile: File, mo
 							const streamTitle = vid.title || "Unknown";
 							const uploaderName = vid.uploader || "Unknown";
 							const durationSec = vid.duration || 0;
-							const uploadDateTs = vid.uploadDate ? new Date(vid.uploadDate).getTime() / 1000 : null;
+							const uploadDateTs = libreTubeUploadDateSeconds(vid.uploadDate);
 							const thumbnailUrl = vid.thumbnailUrl || null;
 
 							insertStreamIgnore(db, {
@@ -376,7 +393,7 @@ export async function exportToNewPipe(npFile: File | undefined, ltFile: File, mo
 					const streamTitle = vid.title || vid.name || "Unknown";
 					const uploaderName = vid.uploader || vid.uploaderName || "Unknown";
 					const durationSec = vid.duration || vid.length || 0;
-					const uploadDateTs = vid.uploadDate ? (isNaN(Number(vid.uploadDate)) ? Math.floor(new Date(vid.uploadDate).getTime() / 1000) : Math.floor(Number(vid.uploadDate))) : null;
+					const uploadDateTs = libreTubeUploadDateSeconds(vid.uploadDate);
 					const thumbnailUrl = vid.thumbnailUrl || vid.thumbnail || null;
 
 					// progress: prefer LibreTube watchPositions map if available (positions are ms).
