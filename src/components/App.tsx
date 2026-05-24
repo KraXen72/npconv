@@ -12,7 +12,7 @@ import { convertSttToUHabits } from '../converters/stt-uhabits/toUHabits';
 import { createSttStore } from '../stores/sttStore';
 import { downloadFile } from '../utils';
 import type { SqlJsStatic } from 'sql.js';
-import type { ConversionMapping } from '../types/uhabits';
+import type { ConversionMapping } from '../schemas/uhabits';
 
 interface Props {
   SQL: SqlJsStatic;

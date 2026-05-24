@@ -5,10 +5,24 @@ import { describe, expect, test } from 'vitest';
 import JSZip from 'jszip';
 import initSqlJs from 'sql.js';
 import type { Database, SqlJsStatic, SqlValue } from 'sql.js';
+import * as v from 'valibot';
 import { createSchema } from '../../sqlHelper';
 import { exportToLibreTube } from './toLibreTube';
 import { exportToNewPipe } from './toNewPipe';
-import type { LibreTubeBackup } from '../../types/libretube';
+import { LibreTubeBackupSchema, type LibreTubeBackup } from '../../schemas/libretube';
+import {
+	NewPipePlaylistInsertSchema,
+	NewPipePlaylistJoinInsertSchema,
+	NewPipeRemotePlaylistInsertSchema,
+	NewPipeStateRowSchema,
+	NewPipeStreamHistoryInsertSchema,
+	NewPipeStreamInsertSchema,
+	NewPipeStreamStateInsertSchema,
+	NewPipeSubscriptionInsertSchema
+} from '../../schemas/newpipe';
+import { selectRows } from '../../db/sqljs';
+import { findPlaylistIdByName, findRemotePlaylistIdByUrlOrName, findStreamIdByServiceUrl } from '../../db/newpipeRepo';
+import { SERVICE_ID_YOUTUBE } from '../../constants';
 
 const FIXTURES_DIR = path.resolve(process.cwd(), 'fixtures');
 const LEGACY_ARTIFACTS_DIR = path.resolve(process.cwd(), '_artifacts');
@@ -34,7 +48,8 @@ const NEWPIPE_MERGE_BACKUP_PATH = fixturePath(
 	'newpipe_used_for_merging-NewPipeData-20251216_181353 (1).zip'
 );
 
-const WATCHED_SENTINEL = 9223372036854775807;
+// i64 max exceeds Number.MAX_SAFE_INTEGER, so keep the sentinel exact as text.
+const WATCHED_SENTINEL = '9223372036854775807';
 const MAX_SAFE_WATCH_POSITION = Number.MAX_SAFE_INTEGER;
 
 interface StreamProgress {
@@ -146,6 +161,13 @@ async function createMinimalNewPipeBackup(SQL: SqlJsStatic): Promise<File> {
 }
 
 describe('NewPipe/LibreTube conversion regressions', () => {
+	test('fixture_libreTubeBackup_validatesAgainstSharedSchema', async () => {
+		const raw = JSON.parse(await readFile(LIBRETUBE_BACKUP_PATH, 'utf8'));
+		const result = v.safeParse(LibreTubeBackupSchema, raw);
+
+		expect(result.success).toBe(true);
+	});
+
 	test('convertToNewPipe_preservesPartialProgressAndMapsWatchedSentinelsToFiniteFullProgress', async () => {
 		// Arrange
 		const SQL = await initSqlJs();
@@ -207,7 +229,7 @@ describe('NewPipe/LibreTube conversion regressions', () => {
 					progressTime: expectedProgressMillis
 				}))
 			);
-			expect(watchedProgress.map(({ progressTime }) => progressTime)).not.toContain(WATCHED_SENTINEL);
+			expect(watchedProgress.map(({ progressTime }) => String(progressTime))).not.toContain(WATCHED_SENTINEL);
 			expect(implicitWatchedProgress.map(({ progressTime }) => progressTime)).not.toContain(0);
 			expect(knownProgress).toEqual(
 				knownPositions.map(({ expectedDurationSeconds, expectedProgressMillis }) => ({
@@ -333,6 +355,20 @@ describe('NewPipe/LibreTube conversion regressions', () => {
 		}
 	});
 
+	test('newPipeRepo_missingIdLookupsReturnUndefined', async () => {
+		const SQL = await initSqlJs();
+		const db = new SQL.Database();
+		createSchema(db);
+
+		try {
+			expect(findStreamIdByServiceUrl(db, SERVICE_ID_YOUTUBE, 'https://www.youtube.com/watch?v=missing')).toBeUndefined();
+			expect(findPlaylistIdByName(db, 'missing')).toBeUndefined();
+			expect(findRemotePlaylistIdByUrlOrName(db, 'https://www.youtube.com/playlist?list=missing', 'missing')).toBeUndefined();
+		} finally {
+			db.close();
+		}
+	});
+
 	test('convertToLibreTube_exportsHistoryAndSafeWatchPositionsFromNewPipeBackup', async () => {
 		// Arrange
 		const SQL = await initSqlJs();
@@ -340,7 +376,7 @@ describe('NewPipe/LibreTube conversion regressions', () => {
 
 		// Act
 		const result = await exportToLibreTube(newPipeFile, undefined, 'convert', SQL, undefined, true);
-		const backup = JSON.parse(result.jsonText) as LibreTubeBackup;
+		const backup: LibreTubeBackup = v.parse(LibreTubeBackupSchema, JSON.parse(result.jsonText));
 
 		const watchedVideo = backup.watchHistory.find(item => item.videoId === 'lsvZdADkM5U');
 		const watchedPosition = backup.watchPositions.find(item => item.videoId === 'lsvZdADkM5U');
@@ -356,5 +392,81 @@ describe('NewPipe/LibreTube conversion regressions', () => {
 			position: MAX_SAFE_WATCH_POSITION
 		});
 		expect(backup.watchPositions.every(item => Number.isSafeInteger(Number(item.position)))).toBe(true);
+	});
+
+	test('convertToLibreTube_outputValidatesAgainstSharedSchema', async () => {
+		const SQL = await initSqlJs();
+		const newPipeFile = await artifactFile(NEWPIPE_MERGE_BACKUP_PATH, 'application/zip');
+
+		const result = await exportToLibreTube(newPipeFile, undefined, 'convert', SQL, undefined, true);
+
+		expect(v.safeParse(LibreTubeBackupSchema, JSON.parse(result.jsonText)).success).toBe(true);
+	});
+
+	test('generatedNewPipeRows_validateAgainstSharedSchemas', async () => {
+		const SQL = await initSqlJs();
+		const { db } = await convertLibreTubeArtifactToNewPipe(SQL);
+
+		try {
+			const stateRows = selectRows(
+				db,
+				`
+					SELECT s.url, ss.progress_time
+					FROM stream_state ss
+					JOIN streams s ON ss.stream_id = s.uid
+					LIMIT 3
+				`,
+				NewPipeStateRowSchema
+			);
+			const historyRows = selectRows(
+				db,
+				`
+					SELECT stream_id, access_date, repeat_count
+					FROM stream_history
+					LIMIT 3
+				`,
+				NewPipeStreamHistoryInsertSchema
+			);
+
+			expect(stateRows.length).toBeGreaterThan(0);
+			expect(historyRows.length).toBeGreaterThan(0);
+		} finally {
+			db.close();
+		}
+	});
+
+	test('convertToNewPipe_generatedDatabaseRowsValidateAgainstSharedSchemas', async () => {
+		const SQL = await initSqlJs();
+		const libreTubeFile = await artifactFile(LIBRETUBE_BACKUP_PATH, 'application/json');
+		const result = await exportToNewPipe(undefined, libreTubeFile, 'convert', SQL);
+		const { db } = await loadNewPipeConversionFromZip(SQL, result.data);
+
+		try {
+			expect(selectRows(
+				db,
+				'SELECT service_id, url, name, avatar_url, subscriber_count, description, notification_mode FROM subscriptions',
+				NewPipeSubscriptionInsertSchema
+			).length).toBeGreaterThan(0);
+			expect(selectRows(
+				db,
+				'SELECT service_id, url, title, stream_type, duration, uploader, upload_date, thumbnail_url FROM streams',
+				NewPipeStreamInsertSchema
+			).length).toBeGreaterThan(0);
+			expect(selectRows(
+				db,
+				'SELECT name, is_thumbnail_permanent, thumbnail_stream_id, display_index FROM playlists',
+				NewPipePlaylistInsertSchema
+			).length).toBeGreaterThan(0);
+			selectRows(db, 'SELECT playlist_id, stream_id, join_index FROM playlist_stream_join', NewPipePlaylistJoinInsertSchema);
+			selectRows(
+				db,
+				'SELECT service_id, name, url, thumbnail_url, uploader, display_index, stream_count FROM remote_playlists',
+				NewPipeRemotePlaylistInsertSchema
+			);
+			expect(selectRows(db, 'SELECT progress_time, stream_id FROM stream_state', NewPipeStreamStateInsertSchema).length).toBeGreaterThan(0);
+			expect(selectRows(db, 'SELECT stream_id, access_date, repeat_count FROM stream_history', NewPipeStreamHistoryInsertSchema).length).toBeGreaterThan(0);
+		} finally {
+			db.close();
+		}
 	});
 });

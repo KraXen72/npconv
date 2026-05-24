@@ -1,6 +1,6 @@
 import { createSignal, createEffect, createMemo, onMount, onCleanup, type Component, type JSX, Show, For } from 'solid-js';
-import type { ParsedSttBackup, SttRecord } from '../types/stt';
-import type { ParsedUHabitsBackup } from '../types/uhabits';
+import type { ParsedSttBackup, SttRecord } from '../schemas/stt';
+import type { ParsedUHabitsBackup } from '../schemas/uhabits';
 
 declare module "solid-js" {
   namespace JSX {
@@ -292,4 +292,3 @@ export const MappingItem: Component<Props> = (props) => {
     </div>
   );
 };
-

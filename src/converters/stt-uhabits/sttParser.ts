@@ -1,7 +1,17 @@
-import type { ParsedSttBackup, SttRecordType, SttRecord, SttCategory, SttRecordTag } from '../../types/stt';
+import * as v from 'valibot';
+import type { ParsedSttBackup, SttRecordType, SttRecord, SttCategory, SttRecordTag } from '../../schemas/stt';
 import { log } from '../../logger';
+import { SttCategorySchema, SttRecordSchema, SttRecordTagSchema, SttRecordTypeSchema } from '../../schemas/stt';
 
 type SttRowType = 'recordType' | 'record' | 'category' | 'recordTag';
+
+function parseSttRow<T>(schema: v.GenericSchema<unknown, T>, input: unknown, context: string, rawLine: string): T | undefined {
+	const result = v.safeParse(schema, input);
+	if (result.success) return result.output;
+
+	log(`Skipping invalid ${context}: ${rawLine} (${v.summarize(result.issues)})`, 'warn');
+	return undefined;
+}
 
 /**
  * Parse Simple Time Tracker TSV backup file
@@ -31,15 +41,15 @@ export async function parseSttBackup(file: File): Promise<ParsedSttBackup> {
 		
 		if (type === 'recordType') {
 			// recordType	1	Guitar	🎸	2	0	0
-			const recordType: SttRecordType = {
+			const recordType = parseSttRow(SttRecordTypeSchema, {
 				id: parseInt(row[1], 10),
 				name: row[2] || '',
 				emoji: row[3] || '',
 				color: parseInt(row[4], 10) || 0,
 				category_id: parseInt(row[5], 10) || 0,
-			};
+			}, 'STT recordType row', row.join('\t'));
 			
-			if (!isNaN(recordType.id)) {
+			if (recordType) {
 				recordTypes.set(recordType.id, recordType);
 			}
 			
@@ -55,7 +65,7 @@ export async function parseSttBackup(file: File): Promise<ParsedSttBackup> {
 				}
 			}
 			
-			const record: SttRecord = {
+			const recordInput = {
 				id: parseInt(row[1], 10),
 				type_id: parseInt(row[2], 10),
 				start_timestamp: parseInt(row[3], 10),
@@ -63,37 +73,32 @@ export async function parseSttBackup(file: File): Promise<ParsedSttBackup> {
 				comment: row.slice(5).join('\t') || undefined,
 			};
 			
-			// Skip invalid records
-			if (isNaN(record.id) || isNaN(record.type_id) || isNaN(record.start_timestamp) || isNaN(record.end_timestamp)) {
-				log(`Skipping invalid record: ${row.join('\t')}`, 'warn');
-				continue;
-			}
-			
-			records.push(record);
+			const record = parseSttRow(SttRecordSchema, recordInput, 'STT record row', row.join('\t'));
+			if (record) records.push(record);
 			
 		} else if (type === 'category') {
 			// category	1	2 - Productive Hobbies	9
-			const category: SttCategory = {
+			const category = parseSttRow(SttCategorySchema, {
 				id: parseInt(row[1], 10),
 				name: row[2] || '',
 				color: parseInt(row[3], 10) || 0,
-			};
+			}, 'STT category row', row.join('\t'));
 			
-			if (!isNaN(category.id)) {
+			if (category) {
 				categories.set(category.id, category);
 			}
 			
 		} else if (type === 'recordTag') {
 			// recordTag	1		e-reader	0	0		📓	5		0
-			const recordTag: SttRecordTag = {
+			const recordTag = parseSttRow(SttRecordTagSchema, {
 				id: parseInt(row[1], 10),
 				name: row[3] || '',
 				emoji: row[7] || '',
 				color: parseInt(row[4], 10) || 0,
 				type_id: parseInt(row[5], 10) || 0,
-			};
+			}, 'STT recordTag row', row.join('\t'));
 			
-			if (!isNaN(recordTag.id)) {
+			if (recordTag) {
 				recordTags.set(recordTag.id, recordTag);
 			}
 		}

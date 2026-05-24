@@ -1,8 +1,9 @@
 import type { SqlJsStatic } from 'sql.js';
-import type { ConversionMapping } from '../../types/uhabits';
+import type { ConversionMapping } from '../../schemas/uhabits';
 import { parseSttBackup, filterRecordsByDuration, groupRecordsByDay, getRecordsForType } from './sttParser';
 import { parseUHabitsBackup, timestampToDayStart, exportUHabitsBackup } from './uhabitsHelper';
 import { log } from '../../logger';
+import { insertRepetition } from '../../db/uhabitsRepo';
 
 /**
  * Convert Simple Time Tracker records to uHabits boolean habit entries
@@ -95,10 +96,7 @@ export async function convertSttToUHabits(
 	
 	// Insert all new repetitions in sorted order
 	for (const rep of newRepetitions) {
-		db.run(`
-			INSERT INTO Repetitions (habit, timestamp, value, notes)
-			VALUES (?, ?, ?, ?)
-		`, [rep.habitId, rep.timestamp, 2, rep.notes]);
+		insertRepetition(db, { ...rep, value: 2 });
 	}
 	
 	// Log results
