@@ -8,7 +8,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "tsc -noEmit -skipLibCheck"
+    "lint": "tsc -noEmit -skipLibCheck",
+    "test": "vitest run",
+    "test:np-lt": "vitest run src/converters/newpipe-libretube"
   },
   "keywords": [],
   "author": "",
@@ -19,7 +21,8 @@
     "babel-preset-solid": "^1.9.10",
     "typescript": "^5.0.0",
     "vite": "^5.0.0",
-    "vite-plugin-solid": "^2.11.10"
+    "vite-plugin-solid": "^2.11.10",
+    "vitest": "^2.1.9"
   },
   "dependencies": {
     "activity-grid": "^1.1.1",

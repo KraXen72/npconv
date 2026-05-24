@@ -44,14 +44,35 @@ function historyItemProgressTime(vid: LibreTubeHistoryItem, mappedPosition: unkn
 	return completedProgressTime(vid);
 }
 
-export async function convertToNewPipe(npFile: File | undefined, ltFile: File, mode: string, SQL: SqlJsStatic, playlistBehavior?: string) {
+function tableExists(db: Database, tableName: string): boolean {
+	const stmt = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1");
+	try {
+		stmt.bind([tableName]);
+		return stmt.step();
+	} finally {
+		stmt.free();
+	}
+}
+
+function clearTableIfExists(db: Database, tableName: string): void {
+	if (tableExists(db, tableName)) {
+		db.run(`DELETE FROM ${tableName}`);
+	}
+}
+
+export interface NewPipeExportResult {
+	data: Uint8Array;
+	filename: string;
+}
+
+export async function exportToNewPipe(npFile: File | undefined, ltFile: File, mode: string, SQL: SqlJsStatic, playlistBehavior?: string): Promise<NewPipeExportResult> {
 	log("Starting conversion to NewPipe format...");
 
 	let db: Database;
 	let zip = new JSZip();
 	let streamStateDebug = '';
 	let existingPreferences: string | null = null;
-	let existingSettings: Blob | null = null;
+	let existingSettings: Uint8Array | null = null;
 	// playlist behavior passed from UI
 	const pb = playlistBehavior || null;
 	let skipPlaylistImport = false;
@@ -89,7 +110,7 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 		}
 		const settingsFile = sourceZip.file("newpipe.settings");
 		if (settingsFile) {
-			existingSettings = await settingsFile.async("blob");
+			existingSettings = await settingsFile.async("uint8array");
 		}
 
 	} else {
@@ -110,6 +131,8 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 	try {
 		log("Processing Subscriptions...");
 		if (mode === 'merge') {
+			clearTableIfExists(db, 'feed');
+			clearTableIfExists(db, 'feed_last_updated');
 			db.run(`DELETE FROM subscriptions WHERE service_id = ${SERVICE_ID_YOUTUBE}`);
 		}
 
@@ -531,8 +554,18 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 		log('stream_state_debug preview:\n' + preview, 'schema');
 	}
 
-	const blob = await zip.generateAsync({ type: "blob" });
+	const dataBytes = await zip.generateAsync({ type: "uint8array" });
+	log("Done! NewPipe backup exported.", "info");
+	return {
+		data: dataBytes,
+		filename: "newpipe_converted.zip"
+	};
+}
+
+export async function convertToNewPipe(npFile: File | undefined, ltFile: File, mode: string, SQL: SqlJsStatic, playlistBehavior?: string) {
+	const result = await exportToNewPipe(npFile, ltFile, mode, SQL, playlistBehavior);
+	const blob = new Blob([result.data as any], { type: "application/zip" });
 	const timestamp = getTimestamp();
-	downloadFile(blob, "newpipe_converted.zip", timestamp);
+	downloadFile(blob, result.filename, timestamp);
 	log("Done! File downloaded.", "info");
 }
