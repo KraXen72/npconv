@@ -1,9 +1,10 @@
 import type { Database } from 'sql.js';
+import { and, asc, between, eq, or } from 'drizzle-orm';
 import { SERVICE_ID_YOUTUBE } from '../constants';
-import { selectOne, selectRows, validatePayload } from './sqljs';
+import { parseWithSchema } from '../schemas/sql';
+import { getNewPipeDb, playlistStreamJoin, playlists, remotePlaylists, streamHistory, streams, streamState, subscriptions } from './newpipeTables';
 import {
 	NewPipeHistoryRowSchema,
-	NewPipeIdRowSchema,
 	NewPipePlaylistInsertSchema,
 	NewPipePlaylistJoinInsertSchema,
 	NewPipePlaylistRowSchema,
@@ -40,8 +41,8 @@ const CLEARABLE_TABLES = new Set([
 ]);
 
 export function tableExists(db: Database, tableName: string): boolean {
-	const row = selectOne(db, "SELECT 1 AS uid FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1", NewPipeIdRowSchema, [tableName]);
-	return Boolean(row);
+	const result = db.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1", [tableName]);
+	return Boolean(result[0]?.values.length);
 }
 
 export function clearTableIfExists(db: Database, tableName: string): void {
@@ -54,134 +55,184 @@ export function clearTableIfExists(db: Database, tableName: string): void {
 }
 
 export function deleteYoutubeSubscriptions(db: Database): void {
-	db.run('DELETE FROM subscriptions WHERE service_id = ?', [SERVICE_ID_YOUTUBE]);
+	getNewPipeDb(db).delete(subscriptions).where(eq(subscriptions.service_id, SERVICE_ID_YOUTUBE)).run();
 }
 
 export function insertSubscription(db: Database, input: NewPipeSubscriptionInsert): void {
-	const row = validatePayload(NewPipeSubscriptionInsertSchema, input, 'NewPipe subscription insert');
-	db.run(
-		'INSERT INTO subscriptions (service_id, url, name, avatar_url, subscriber_count, description, notification_mode) VALUES (?, ?, ?, ?, ?, ?, ?)',
-		[row.service_id, row.url, row.name, row.avatar_url, row.subscriber_count, row.description, row.notification_mode]
-	);
+	const row = parseWithSchema(NewPipeSubscriptionInsertSchema, input, 'NewPipe subscription insert');
+	getNewPipeDb(db).insert(subscriptions).values(row).run();
 }
 
 export function insertStreamIgnore(db: Database, input: NewPipeStreamInsert): void {
-	const row = validatePayload(NewPipeStreamInsertSchema, input, 'NewPipe stream insert');
-	db.run(
-		'INSERT OR IGNORE INTO streams (service_id, url, title, stream_type, duration, uploader, upload_date, thumbnail_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-		[row.service_id, row.url, row.title, row.stream_type, row.duration, row.uploader, row.upload_date, row.thumbnail_url]
-	);
+	const row = parseWithSchema(NewPipeStreamInsertSchema, input, 'NewPipe stream insert');
+	getNewPipeDb(db).insert(streams).values(row).onConflictDoNothing().run();
 }
 
 export function findStreamIdByServiceUrl(db: Database, serviceId: number, url: string): number | undefined {
-	// selectOne returns undefined for no row; NewPipeIdRowSchema rejects null ids.
-	return selectOne(db, 'SELECT uid FROM streams WHERE service_id = ? AND url = ?', NewPipeIdRowSchema, [serviceId, url])?.uid;
+	return getNewPipeDb(db)
+		.select({ uid: streams.uid })
+		.from(streams)
+		.where(and(eq(streams.service_id, serviceId), eq(streams.url, url)))
+		.get()?.uid;
 }
 
 export function findPlaylistIdByName(db: Database, name: string): number | undefined {
-	return selectOne(db, 'SELECT uid FROM playlists WHERE name = ?', NewPipeIdRowSchema, [name])?.uid;
+	return getNewPipeDb(db).select({ uid: playlists.uid }).from(playlists).where(eq(playlists.name, name)).get()?.uid;
 }
 
 export function insertPlaylist(db: Database, input: NewPipePlaylistInsert): number {
-	const row = validatePayload(NewPipePlaylistInsertSchema, input, 'NewPipe playlist insert');
-	db.run(
-		'INSERT INTO playlists (name, is_thumbnail_permanent, thumbnail_stream_id, display_index) VALUES (?, ?, ?, ?)',
-		[row.name, row.is_thumbnail_permanent, row.thumbnail_stream_id, row.display_index]
-	);
-	const id = selectOne(db, 'SELECT last_insert_rowid() AS uid', NewPipeIdRowSchema)?.uid;
-	if (id === undefined) throw new Error('Failed to read inserted playlist id');
+	const row = parseWithSchema(NewPipePlaylistInsertSchema, input, 'NewPipe playlist insert');
+	getNewPipeDb(db).insert(playlists).values(row).run();
+	const id = Number(db.exec('SELECT last_insert_rowid() AS uid')[0]?.values[0]?.[0]);
+	if (!Number.isInteger(id)) throw new Error('Failed to read inserted playlist id');
 	return id;
 }
 
 export function insertPlaylistJoin(db: Database, input: NewPipePlaylistJoinInsert): void {
-	const row = validatePayload(NewPipePlaylistJoinInsertSchema, input, 'NewPipe playlist join insert');
-	db.run('INSERT INTO playlist_stream_join (playlist_id, stream_id, join_index) VALUES (?, ?, ?)', [row.playlist_id, row.stream_id, row.join_index]);
+	const row = parseWithSchema(NewPipePlaylistJoinInsertSchema, input, 'NewPipe playlist join insert');
+	getNewPipeDb(db).insert(playlistStreamJoin).values(row).run();
 }
 
 export function updatePlaylistThumbnail(db: Database, playlistId: number, streamId: number): void {
-	db.run('UPDATE playlists SET thumbnail_stream_id = ? WHERE uid = ?', [streamId, playlistId]);
+	getNewPipeDb(db).update(playlists).set({ thumbnail_stream_id: streamId }).where(eq(playlists.uid, playlistId)).run();
 }
 
 export function deletePlaylist(db: Database, playlistId: number): void {
-	db.run('DELETE FROM playlist_stream_join WHERE playlist_id = ?', [playlistId]);
-	db.run('DELETE FROM playlists WHERE uid = ?', [playlistId]);
+	const orm = getNewPipeDb(db);
+	orm.delete(playlistStreamJoin).where(eq(playlistStreamJoin.playlist_id, playlistId)).run();
+	orm.delete(playlists).where(eq(playlists.uid, playlistId)).run();
 }
 
 export function findRemotePlaylistIdByUrlOrName(db: Database, url: string, name: string): number | undefined {
-	return selectOne(db, 'SELECT uid FROM remote_playlists WHERE url = ? OR name = ?', NewPipeIdRowSchema, [url, name])?.uid;
+	return getNewPipeDb(db)
+		.select({ uid: remotePlaylists.uid })
+		.from(remotePlaylists)
+		.where(or(eq(remotePlaylists.url, url), eq(remotePlaylists.name, name)))
+		.get()?.uid;
 }
 
 export function deleteRemotePlaylist(db: Database, id: number): void {
-	db.run('DELETE FROM remote_playlists WHERE uid = ?', [id]);
+	getNewPipeDb(db).delete(remotePlaylists).where(eq(remotePlaylists.uid, id)).run();
 }
 
 export function insertRemotePlaylist(db: Database, input: NewPipeRemotePlaylistInsert): void {
-	const row = validatePayload(NewPipeRemotePlaylistInsertSchema, input, 'NewPipe remote playlist insert');
-	db.run(
-		'INSERT INTO remote_playlists (service_id, name, url, thumbnail_url, uploader, display_index, stream_count) VALUES (?, ?, ?, ?, ?, ?, ?)',
-		[row.service_id, row.name, row.url, row.thumbnail_url, row.uploader, row.display_index, row.stream_count]
-	);
+	const row = parseWithSchema(NewPipeRemotePlaylistInsertSchema, input, 'NewPipe remote playlist insert');
+	getNewPipeDb(db).insert(remotePlaylists).values(row).run();
 }
 
 export function insertStreamState(db: Database, input: NewPipeStreamStateInsert): void {
-	const row = validatePayload(NewPipeStreamStateInsertSchema, input, 'NewPipe stream_state insert');
-	db.run('INSERT OR REPLACE INTO stream_state (progress_time, stream_id) VALUES (?, ?)', [row.progress_time, row.stream_id]);
+	const row = parseWithSchema(NewPipeStreamStateInsertSchema, input, 'NewPipe stream_state insert');
+	getNewPipeDb(db).insert(streamState).values(row).onConflictDoUpdate({
+		target: streamState.stream_id,
+		set: { progress_time: row.progress_time }
+	}).run();
 }
 
 export function insertStreamHistory(db: Database, input: NewPipeStreamHistoryInsert): void {
-	const row = validatePayload(NewPipeStreamHistoryInsertSchema, input, 'NewPipe stream_history insert');
-	db.run('INSERT OR REPLACE INTO stream_history (stream_id, access_date, repeat_count) VALUES (?, ?, ?)', [row.stream_id, row.access_date, row.repeat_count]);
+	const row = parseWithSchema(NewPipeStreamHistoryInsertSchema, input, 'NewPipe stream_history insert');
+	getNewPipeDb(db).insert(streamHistory).values(row).onConflictDoUpdate({
+		target: [streamHistory.stream_id, streamHistory.access_date],
+		set: { repeat_count: row.repeat_count }
+	}).run();
 }
 
 export function selectHistoryNear(db: Database, streamId: number, low: number, high: number): NewPipeStreamHistoryInsert[] {
-	return selectRows(db, 'SELECT stream_id, access_date, repeat_count FROM stream_history WHERE stream_id = ? AND access_date BETWEEN ? AND ?', NewPipeStreamHistoryInsertSchema, [streamId, low, high]);
+	return getNewPipeDb(db)
+		.select({
+			stream_id: streamHistory.stream_id,
+			access_date: streamHistory.access_date,
+			repeat_count: streamHistory.repeat_count
+		})
+		.from(streamHistory)
+		.where(and(eq(streamHistory.stream_id, streamId), between(streamHistory.access_date, low, high)))
+		.all()
+		.map((row) => parseWithSchema(NewPipeStreamHistoryInsertSchema, row, 'NewPipe stream_history row'));
 }
 
 export function updateStreamHistoryRepeatCount(db: Database, streamId: number, accessDate: number, repeatCount: number): void {
-	db.run('UPDATE stream_history SET repeat_count = ? WHERE stream_id = ? AND access_date = ?', [repeatCount, streamId, accessDate]);
+	getNewPipeDb(db)
+		.update(streamHistory)
+		.set({ repeat_count: repeatCount })
+		.where(and(eq(streamHistory.stream_id, streamId), eq(streamHistory.access_date, accessDate)))
+		.run();
 }
 
 export function selectYoutubeSubscriptions(db: Database): NewPipeSubscriptionRow[] {
-	return selectRows(db, 'SELECT url, name, avatar_url FROM subscriptions WHERE service_id = ?', NewPipeSubscriptionRowSchema, [SERVICE_ID_YOUTUBE]);
+	return getNewPipeDb(db)
+		.select({ url: subscriptions.url, name: subscriptions.name, avatar_url: subscriptions.avatar_url })
+		.from(subscriptions)
+		.where(eq(subscriptions.service_id, SERVICE_ID_YOUTUBE))
+		.all()
+		.map((row) => parseWithSchema(NewPipeSubscriptionRowSchema, row, 'NewPipe subscription row'));
 }
 
 export function selectYoutubeRemotePlaylists(db: Database): NewPipeRemotePlaylistRow[] {
-	return selectRows(db, 'SELECT name, url, uploader, thumbnail_url, stream_count FROM remote_playlists WHERE service_id = ?', NewPipeRemotePlaylistRowSchema, [SERVICE_ID_YOUTUBE]);
+	return getNewPipeDb(db)
+		.select({
+			name: remotePlaylists.name,
+			url: remotePlaylists.url,
+			uploader: remotePlaylists.uploader,
+			thumbnail_url: remotePlaylists.thumbnail_url,
+			stream_count: remotePlaylists.stream_count
+		})
+		.from(remotePlaylists)
+		.where(eq(remotePlaylists.service_id, SERVICE_ID_YOUTUBE))
+		.all()
+		.map((row) => parseWithSchema(NewPipeRemotePlaylistRowSchema, row, 'NewPipe remote playlist row'));
 }
 
 export function selectPlaylists(db: Database): NewPipePlaylistRow[] {
-	return selectRows(db, 'SELECT uid, name FROM playlists', NewPipePlaylistRowSchema);
+	return getNewPipeDb(db)
+		.select({ uid: playlists.uid, name: playlists.name })
+		.from(playlists)
+		.all()
+		.map((row) => parseWithSchema(NewPipePlaylistRowSchema, row, 'NewPipe playlist row'));
 }
 
 export function selectPlaylistVideos(db: Database, playlistId: number): NewPipePlaylistVideoRow[] {
-	return selectRows(
-		db,
-		`
-			SELECT s.url, s.title, s.duration, s.uploader, s.upload_date, s.thumbnail_url
-			FROM playlist_stream_join j
-			JOIN streams s ON j.stream_id = s.uid
-			WHERE j.playlist_id = ? AND s.service_id = ?
-			ORDER BY j.join_index ASC
-		`,
-		NewPipePlaylistVideoRowSchema,
-		[playlistId, SERVICE_ID_YOUTUBE]
-	);
+	return getNewPipeDb(db)
+		.select({
+			url: streams.url,
+			title: streams.title,
+			duration: streams.duration,
+			uploader: streams.uploader,
+			upload_date: streams.upload_date,
+			thumbnail_url: streams.thumbnail_url
+		})
+		.from(playlistStreamJoin)
+		.innerJoin(streams, eq(playlistStreamJoin.stream_id, streams.uid))
+		.where(and(eq(playlistStreamJoin.playlist_id, playlistId), eq(streams.service_id, SERVICE_ID_YOUTUBE)))
+		.orderBy(asc(playlistStreamJoin.join_index))
+		.all()
+		.map((row) => parseWithSchema(NewPipePlaylistVideoRowSchema, row, 'NewPipe playlist video row'));
 }
 
 export function selectYoutubeHistory(db: Database): NewPipeHistoryRow[] {
-	return selectRows(
-		db,
-		'SELECT s.url, s.title, s.duration, s.uploader, s.uploader_url, s.thumbnail_url, s.upload_date, sh.access_date, sh.repeat_count FROM stream_history sh JOIN streams s ON sh.stream_id = s.uid WHERE s.service_id = ?',
-		NewPipeHistoryRowSchema,
-		[SERVICE_ID_YOUTUBE]
-	);
+	return getNewPipeDb(db)
+		.select({
+			url: streams.url,
+			title: streams.title,
+			duration: streams.duration,
+			uploader: streams.uploader,
+			uploader_url: streams.uploader_url,
+			thumbnail_url: streams.thumbnail_url,
+			upload_date: streams.upload_date,
+			access_date: streamHistory.access_date,
+			repeat_count: streamHistory.repeat_count
+		})
+		.from(streamHistory)
+		.innerJoin(streams, eq(streamHistory.stream_id, streams.uid))
+		.where(eq(streams.service_id, SERVICE_ID_YOUTUBE))
+		.all()
+		.map((row) => parseWithSchema(NewPipeHistoryRowSchema, row, 'NewPipe history row'));
 }
 
 export function selectYoutubeStreamStates(db: Database): NewPipeStateRow[] {
-	return selectRows(
-		db,
-		'SELECT s.url, ss.progress_time FROM stream_state ss JOIN streams s ON ss.stream_id = s.uid WHERE s.service_id = ?',
-		NewPipeStateRowSchema,
-		[SERVICE_ID_YOUTUBE]
-	);
+	return getNewPipeDb(db)
+		.select({ url: streams.url, progress_time: streamState.progress_time })
+		.from(streamState)
+		.innerJoin(streams, eq(streamState.stream_id, streams.uid))
+		.where(eq(streams.service_id, SERVICE_ID_YOUTUBE))
+		.all()
+		.map((row) => parseWithSchema(NewPipeStateRowSchema, row, 'NewPipe stream state row'));
 }

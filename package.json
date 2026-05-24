@@ -26,6 +26,8 @@
   },
   "dependencies": {
     "activity-grid": "^1.1.1",
+    "drizzle-orm": "^0.45.2",
+    "drizzle-valibot": "^0.4.2",
     "jszip": "^3.10.1",
     "solid-js": "^1.9.10",
     "sql.js": "^1.13.0",

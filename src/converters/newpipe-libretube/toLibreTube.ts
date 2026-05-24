@@ -217,8 +217,9 @@ export async function exportToLibreTube(npFile: File, ltFile: File | undefined, 
 		try {
 			targetData.playlistBookmarks = preservedPlaylists.playlistBookmarks as LibreTubePlaylistBookmark[];
 			targetData.localPlaylists = preservedPlaylists.localPlaylists as LibreTubeLocalPlaylist[];
-			Object.keys(preservedPlaylists.otherPlaylistKeys || {}).forEach(k => {
-				(targetData as any)[k] = preservedPlaylists.otherPlaylistKeys[k];
+			const otherPlaylistKeys = preservedPlaylists.otherPlaylistKeys || {};
+			Object.keys(otherPlaylistKeys).forEach(k => {
+				(targetData as any)[k] = otherPlaylistKeys[k];
 			});
 			log('Restored original LibreTube playlist data (only_libretube).');
 		} catch (e: any) {

@@ -129,9 +129,11 @@ export const App: Component<Props> = (props) => {
     try {
       setProcessing(true);
       if (direction === 'to_newpipe') {
-        await convertToNewPipe(npFile, ltFile as File, currentMode, props.SQL, playlistBehavior);
+        if (!ltFile) return log("Missing LibreTube source file.", "err");
+        await convertToNewPipe(npFile ?? undefined, ltFile, currentMode, props.SQL, playlistBehavior);
       } else {
-        await convertToLibreTube(npFile as File, ltFile, currentMode, props.SQL, playlistBehavior, includeWatchHistory());
+        if (!npFile) return log("Missing NewPipe source file.", "err");
+        await convertToLibreTube(npFile, ltFile ?? undefined, currentMode, props.SQL, playlistBehavior, includeWatchHistory());
       }
     } catch (e: any) {
       log(`FATAL ERROR: ${e.message || e.toString() || 'An unknown error occurred'}`, "err");
