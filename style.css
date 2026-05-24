@@ -196,9 +196,19 @@ h3 {
 .mode-pill:focus {
 	outline: 2px solid rgba(187, 134, 252, 0.08);
 }
+@media (width < 40rem) { 
+	.mode-pill {
+		width: 100%;
+	}		
+}
+
 
 #global-options {
 	padding-bottom: 1rem;
+	display: flex;
+	gap: 4px;
+	align-items: center;
+	line-height: 1.25;
 }
 
 /* Merge/convert control blocks */
@@ -229,6 +239,12 @@ h3 {
 	color: var(--text);
 	border: 1px solid var(--border);
 }
+@media (width < 40rem) { 
+	.merge-options select {
+		width: 100%;
+	}
+}
+
 
 .direction-toggle {
 	display: flex;
@@ -331,6 +347,17 @@ input[type="file"] {
 	/* margin-top: 30px; */
 	flex-wrap: wrap;
 }
+@media (width < 40rem) { 
+	.controls {
+		gap: 8px;
+		flex-wrap: nowrap;
+	}
+	.controls button {
+		font-size: 0.875rem;
+		width: 100%;
+	}
+}
+
 
 button {
 	background: var(--primary);
