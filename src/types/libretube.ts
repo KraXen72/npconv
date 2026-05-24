@@ -44,7 +44,7 @@ export interface LibreTubeLocalPlaylist {
 
 export interface LibreTubeWatchPosition {
     videoId: string;
-    position: number;
+    position: number | string;
 }
 
 export interface LibreTubeHistoryItem {

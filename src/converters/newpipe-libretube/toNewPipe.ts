@@ -6,6 +6,44 @@ import { createSchema, ensureStreamStateSchema, collectStreamStateDebug } from '
 import type { LibreTubeBackup, LibreTubeHistoryItem, LibreTubeLocalPlaylist, LibreTubePlaylistBookmark, LibreTubeWatchPosition } from '../../types/libretube';
 import { downloadFile, extractVideoIdFromUrl, getTimestamp } from '../../utils';
 
+const LIBRETUBE_WATCHED_POSITION_SENTINEL = '9223372036854775807';
+
+function isNewPipeWatchedSentinel(value: unknown): boolean {
+	const raw = String(value ?? '').trim();
+	if (!raw) return false;
+	if (raw === LIBRETUBE_WATCHED_POSITION_SENTINEL) return true;
+
+	const numeric = Number(raw);
+	return Number.isFinite(numeric) && numeric >= Number.MAX_SAFE_INTEGER;
+}
+
+function completedProgressTime(vid: LibreTubeHistoryItem): number {
+	const duration = Number(vid.duration ?? vid.length ?? 0);
+	return Number.isFinite(duration) && duration > 0 ? Math.floor(duration * 1000) : 0;
+}
+
+function normalizeLibreTubePosition(value: unknown, vid: LibreTubeHistoryItem): number {
+	if (isNewPipeWatchedSentinel(value)) return completedProgressTime(vid);
+
+	const position = Number(value || 0);
+	if (!Number.isFinite(position) || position <= 0) return 0;
+	return Math.floor(position);
+}
+
+function historyItemProgressTime(vid: LibreTubeHistoryItem, mappedPosition: unknown): number {
+	if (mappedPosition !== undefined && mappedPosition !== null) {
+		return normalizeLibreTubePosition(mappedPosition, vid);
+	}
+
+	const progressSeconds = vid.currentTime ?? vid.position ?? vid.progress;
+	if (progressSeconds !== undefined && progressSeconds !== null) {
+		const progress = Number(progressSeconds);
+		return Number.isFinite(progress) && progress > 0 ? Math.floor(progress * 1000) : 0;
+	}
+
+	return completedProgressTime(vid);
+}
+
 export async function convertToNewPipe(npFile: File | undefined, ltFile: File, mode: string, SQL: SqlJsStatic, playlistBehavior?: string) {
 	log("Starting conversion to NewPipe format...");
 
@@ -321,13 +359,12 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 		const historyArray: LibreTubeHistoryItem[] = ltData.history || ltData.watchHistory || ltData.watch_history || ltData.watch_history_items || [];
 
 		// build a map of watch positions (videoId -> position)
-		const watchPosMap = new Map<string, number>();
+		const watchPosMap = new Map<string, number | string>();
 		if (ltData.watchPositions && Array.isArray(ltData.watchPositions)) {
 			const watchPositions: LibreTubeWatchPosition[] = ltData.watchPositions;
 			for (const p of watchPositions) {
 				if (p && p.videoId) {
-					const pos = Number(p.position || 0);
-					watchPosMap.set(String(p.videoId), pos);
+					watchPosMap.set(String(p.videoId), p.position || 0);
 				}
 			}
 		}
@@ -350,22 +387,12 @@ export async function convertToNewPipe(npFile: File | undefined, ltFile: File, m
 					const uploadDateTs = vid.uploadDate ? (isNaN(Number(vid.uploadDate)) ? Math.floor(new Date(vid.uploadDate).getTime() / 1000) : Math.floor(Number(vid.uploadDate))) : null;
 					const thumbnailUrl = vid.thumbnailUrl || vid.thumbnail || null;
 
-					// progress: prefer LibreTube watchPositions map if available (positions are ms),
-					// fallback to vid.currentTime/position (assumed seconds) and convert to ms.
-					let progressTime = 0;
+					// progress: prefer LibreTube watchPositions map if available (positions are ms).
+					// History entries without an explicit position are completed watches in LibreTube.
+					// Store finite duration-based progress: NewPipe considers it finished, and its UI
+					// casts progress seconds to int when drawing list/detail progress.
 					const mappedPos = watchPosMap.get(vidId);
-					const SENTINEL_STR = '9223372036854775807';
-					if (mappedPos !== undefined && mappedPos !== null) {
-						// ignore sentinel huge values used to indicate unknown/very large position
-						if (String(mappedPos) === SENTINEL_STR) {
-							progressTime = 0;
-						} else {
-							progressTime = Math.floor(Number(mappedPos) || 0);
-						}
-					} else {
-						const progressSeconds = vid.currentTime || vid.position || vid.progress || 0;
-						progressTime = Math.floor(Number(progressSeconds || 0) * 1000);
-					}
+					const progressTime = historyItemProgressTime(vid, mappedPos);
 
 					// access date: accept ISO or epoch (ms or s); produce milliseconds
 					let accessRaw = vid.accessDate || vid.accessedAt || vid.lastWatched || vid.timestamp || vid.date || vid.time;
