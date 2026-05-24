@@ -6,7 +6,12 @@ import { collectStreamStateDebug } from '../../sqlHelper';
 import type { LibreTubeBackup, LibreTubeHistoryItem, LibreTubeLocalPlaylist, LibreTubePlaylistBookmark, LibreTubeVideo } from '../../types/libretube';
 import { clampToSafeInt, downloadFile, extractVideoIdFromUrl, formatUploadDate, getTimestamp, parseAccessDateToMs } from '../../utils';
 
-export async function convertToLibreTube(npFile: File, ltFile: File | undefined, mode: string, SQL: SqlJsStatic, playlistBehavior?: string, includeWatchHistoryParam?: boolean) {
+export interface LibreTubeExportResult {
+	jsonText: string;
+	filename: string;
+}
+
+export async function exportToLibreTube(npFile: File, ltFile: File | undefined, mode: string, SQL: SqlJsStatic, playlistBehavior?: string, includeWatchHistoryParam?: boolean): Promise<LibreTubeExportResult> {
 	log("Starting conversion to LibreTube format...");
 
 	let targetData: LibreTubeBackup = {
@@ -335,12 +340,21 @@ export async function convertToLibreTube(npFile: File, ltFile: File | undefined,
 	}
 
 	const jsonStr = JSON.stringify(targetData, null, 2);
-	const blob = new Blob([jsonStr], { type: "application/json" });
-	const timestamp = getTimestamp();
-	downloadFile(blob, "libretube_converted.json", timestamp);
-	log("Done! File downloaded.", "info");
+	log("Done! LibreTube backup exported.", "info");
+	return {
+		jsonText: jsonStr,
+		filename: "libretube_converted.json"
+	};
 } finally {
 	db.close();
 	log("NewPipe database closed.", "info");
 }
+}
+
+export async function convertToLibreTube(npFile: File, ltFile: File | undefined, mode: string, SQL: SqlJsStatic, playlistBehavior?: string, includeWatchHistoryParam?: boolean) {
+	const result = await exportToLibreTube(npFile, ltFile, mode, SQL, playlistBehavior, includeWatchHistoryParam);
+	const blob = new Blob([result.jsonText], { type: "application/json" });
+	const timestamp = getTimestamp();
+	downloadFile(blob, result.filename, timestamp);
+	log("Done! File downloaded.", "info");
 }
