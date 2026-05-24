@@ -37,7 +37,7 @@ function isNewPipeWatchedSentinel(value: unknown): boolean {
 
 	if (/^\d+$/.test(raw)) {
 		try {
-			if (BigInt(raw) >= LIBRETUBE_WATCHED_POSITION_SENTINEL_BIGINT) return true;
+			return BigInt(raw) >= LIBRETUBE_WATCHED_POSITION_SENTINEL_BIGINT;
 		} catch {
 			// Fall back to Number handling below.
 		}
