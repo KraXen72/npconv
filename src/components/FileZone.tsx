@@ -2,7 +2,7 @@ import type { Component, JSX } from 'solid-js';
 import { createSignal, createEffect, Show } from 'solid-js';
 import { log } from '../logger';
 import type { Mode } from './ModeSelector';
-import { FileCheck2, Upload, X } from 'lucide-solid';
+import { FileCheckCorner, Upload, X } from 'lucide-solid';
 
 interface FileConfig {
 	title: string;
@@ -114,7 +114,7 @@ export const FileZone: Component<Props> = (props) => {
 				<X size={18} />
 			</button>
 
-			<div class="zone-icon"><Show when={fileName()} fallback={<Upload size={20} />}><FileCheck2 size={20} /></Show></div>
+			<div class="zone-icon"><Show when={fileName()} fallback={<Upload size={20} />}><FileCheckCorner size={20} /></Show></div>
 			<h4 class="zone-title">{config().title}</h4>
 			<p>
 				<small class="hint zone-hint" innerHTML={config().hint} />

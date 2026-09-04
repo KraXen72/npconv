@@ -1,5 +1,5 @@
 import { type Component } from 'solid-js';
-import { ArrowLeftRight, ArrowRight, DatabaseBackup, History, Play, TimerReset } from 'lucide-solid';
+import { ArrowLeftRight, ArrowRight, DatabaseBackup, RotateCcwClock, Play, TimerReset } from 'lucide-solid';
 
 export type Mode = 'merge' | 'convert' | 'stt' | 'timejot';
 
@@ -75,7 +75,7 @@ export const ModeSelector: Component<Props> = (props) => {
 						<span class="route-arrow">
 							<ArrowRight size={20} />
 						</span>
-						<AppNode icon={<History size={18} />} name="Loop Habits" />
+						<AppNode icon={<RotateCcwClock size={18} />} name="Loop Habits" />
 					</span>
 					<span class="route-status-balancer"></span>
 				</button>
@@ -93,7 +93,7 @@ export const ModeSelector: Component<Props> = (props) => {
 						<span class="route-arrow">
 							<ArrowRight size={20} />
 						</span>
-						<AppNode icon={<History size={18} />} name="Loop Habits" />
+						<AppNode icon={<RotateCcwClock size={18} />} name="Loop Habits" />
 					</span>
 					<span class="route-status-balancer"></span>
 				</button>
