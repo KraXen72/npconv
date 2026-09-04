@@ -1,5 +1,5 @@
 import { createSignal, For, onMount, onCleanup, createEffect, type Component } from 'solid-js';
-import { MappingItem } from './MappingItem';
+import { MappingItem, type HabitSourceKind } from './MappingItem';
 import type { SttStore } from '../stores/sttStore';
 import type { ConversionMapping } from '../schemas/uhabits';
 
@@ -8,6 +8,7 @@ interface Props {
   sttStore: SttStore;
   onConvert: () => void;
   onMappingsChange: (mappings: ConversionMapping[]) => void;
+  sourceKind: HabitSourceKind;
 }
 
 interface MappingRef {
@@ -21,6 +22,7 @@ interface MappingItemApi {
 export const SttControls: Component<Props> = (props) => {
   const [mappings, setMappings] = createSignal<MappingRef[]>([]);
   const [nextId, setNextId] = createSignal(0);
+  const [validMappingCount, setValidMappingCount] = createSignal(0);
   const mappingRefs = new Map<number, MappingItemApi>();
 
   // Add initial mapping
@@ -38,6 +40,12 @@ export const SttControls: Component<Props> = (props) => {
   const removeMapping = (id: number) => {
     mappingRefs.delete(id);
     setMappings(mappings().filter(m => m.id !== id));
+  };
+
+  const emitMappings = () => {
+    const current = collectMappings();
+    setValidMappingCount(current.length);
+    props.onMappingsChange(current);
   };
 
   // Collect current mappings from refs and emit to parent
@@ -62,37 +70,44 @@ export const SttControls: Component<Props> = (props) => {
     
     // Small delay to ensure refs are populated after render
     setTimeout(() => {
-      props.onMappingsChange(collectMappings());
+      emitMappings();
     }, 0);
   });
 
   const canConvert = () => {
-    return props.sttStore.sttData() && props.sttStore.uhabitsData() &&
-      props.sttStore.sttFile() && props.sttStore.uhabitsFile() &&
-      mappings().length > 0;
+    const hasSource = props.sourceKind === 'timejot'
+      ? props.sttStore.timeJotData() && props.sttStore.timeJotFile()
+      : props.sttStore.sttData() && props.sttStore.sttFile();
+    return hasSource && props.sttStore.uhabitsData() && props.sttStore.uhabitsFile() && validMappingCount() > 0;
   };
 
   return (
-    <section id="action-stt-uhabits-fill" class="controls-block">
-      <h3>SimpleTimeTracker ⇌ uHabits: Fill</h3>
+    <section id="action-stt-uhabits-fill" class="import-workspace">
+      <div class="section-heading">
+        <div><span class="eyebrow">Backfill habits</span><h2>{props.sourceKind === 'timejot' ? 'TimeJot → Loop Habit Tracker' : 'Simple Time Tracker → Loop Habit Tracker'}</h2></div>
+        <p>Choose what maps where. Existing target dates are never overwritten.</p>
+      </div>
 
       <div id="conversion-mappings">
-        <h4>Activity Mappings</h4>
+        <div class="mapping-title-row"><h3>Mappings</h3><span>{mappings().length} configured</span></div>
         <div id="mapping-list">
           <For each={mappings()}>
             {(mapping) => (
               <MappingItem
                 ref={(api: any) => mappingRefs.set(mapping.id, api)}
                 mappingId={mapping.id}
+                sourceKind={props.sourceKind}
                 sttData={props.sttStore.sttData()}
+                timeJotData={props.sttStore.timeJotData()}
                 uhabitsData={props.sttStore.uhabitsData()}
                 onRemove={() => removeMapping(mapping.id)}
+                onChange={emitMappings}
               />
             )}
           </For>
         </div>
         <button id="add-mapping" type="button" onClick={addMapping}>
-          + Add Mapping
+          + Add another mapping
         </button>
       </div>
 
@@ -102,7 +117,7 @@ export const SttControls: Component<Props> = (props) => {
           disabled={props.disabled || !canConvert()}
           onClick={props.onConvert}
         >
-          Fill
+          {props.disabled ? 'Building backup…' : 'Create filled backup'}
         </button>
       </div>
     </section>

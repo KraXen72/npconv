@@ -85,13 +85,15 @@ export interface ParsedUHabitsBackup {
 	db: Database;
 	allHabits: Map<number, UHabitsHabit>;
 	booleanHabits: Map<number, UHabitsHabit>;
+	numericHabits: Map<number, UHabitsHabit>;
 	repetitions: UHabitsRepetition[];
 }
 
 export const ConversionMappingSchema = v.object({
-	sttTypeId: IntegerSchema,
+	sourceId: IntegerSchema,
 	uhabitsHabitId: IntegerSchema,
 	minDuration: v.optional(v.number()),
-	copySttComments: v.optional(v.boolean())
+	copySourceNotes: v.optional(v.boolean()),
+	numericValue: v.optional(v.number())
 });
 export type ConversionMapping = v.InferOutput<typeof ConversionMappingSchema>;

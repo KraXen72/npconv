@@ -2,7 +2,9 @@ import { createSignal } from 'solid-js';
 import type { SqlJsStatic } from 'sql.js';
 import type { ParsedSttBackup } from '../schemas/stt';
 import type { ParsedUHabitsBackup } from '../schemas/uhabits';
+import type { ParsedTimeJotBackup } from '../schemas/timejot';
 import { parseSttBackup } from '../converters/stt-uhabits/sttParser';
+import { parseTimeJotBackup } from '../converters/timejot-uhabits/timejotParser';
 import { parseUHabitsBackup } from '../converters/stt-uhabits/uhabitsHelper';
 import { log } from '../logger';
 
@@ -10,6 +12,8 @@ export function createSttStore(SQL: SqlJsStatic) {
   const [sttData, setSttData] = createSignal<ParsedSttBackup | null>(null);
   const [uhabitsData, setUhabitsData] = createSignal<ParsedUHabitsBackup | null>(null);
   const [sttFile, setSttFile] = createSignal<File | null>(null);
+  const [timeJotData, setTimeJotData] = createSignal<ParsedTimeJotBackup | null>(null);
+  const [timeJotFile, setTimeJotFile] = createSignal<File | null>(null);
   const [uhabitsFile, setUhabitsFile] = createSignal<File | null>(null);
   
   let currentOperationId = 0;
@@ -26,6 +30,22 @@ export function createSttStore(SQL: SqlJsStatic) {
       log(`Error loading STT file: ${errorMsg}`, 'err');
       setSttData(null);
       setSttFile(null);
+      return false;
+    }
+  };
+
+  const loadTimeJotFile = async (file: File) => {
+    try {
+      const data = await parseTimeJotBackup(file, SQL);
+      setTimeJotData(data);
+      setTimeJotFile(file);
+      log(`Loaded ${data.events.size} TimeJot events`, 'info');
+      return true;
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Error loading TimeJot file: ${errorMsg}`, 'err');
+      setTimeJotData(null);
+      setTimeJotFile(null);
       return false;
     }
   };
@@ -81,13 +101,31 @@ export function createSttStore(SQL: SqlJsStatic) {
     }
   };
 
+  const clearSources = () => {
+    setSttData(null);
+    setSttFile(null);
+    setTimeJotData(null);
+    setTimeJotFile(null);
+  };
+
+  const clearUHabits = () => {
+    uhabitsData()?.db.close();
+    setUhabitsData(null);
+    setUhabitsFile(null);
+  };
+
   return {
     sttData,
+    timeJotData,
     uhabitsData,
     sttFile,
+    timeJotFile,
     uhabitsFile,
     loadSttFile,
+    loadTimeJotFile,
     loadUHabitsFile,
+    clearSources,
+    clearUHabits,
   };
 }
 

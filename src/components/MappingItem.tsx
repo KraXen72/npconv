@@ -1,294 +1,160 @@
-import { createSignal, createEffect, createMemo, onMount, onCleanup, type Component, type JSX, Show, For } from 'solid-js';
-import type { ParsedSttBackup, SttRecord } from '../schemas/stt';
-import type { ParsedUHabitsBackup } from '../schemas/uhabits';
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type Component, type JSX } from 'solid-js';
+import type { ParsedSttBackup } from '../schemas/stt';
+import type { ParsedTimeJotBackup } from '../schemas/timejot';
+import type { ConversionMapping, ParsedUHabitsBackup, UHabitsHabit } from '../schemas/uhabits';
+import { timestampToDayKey } from '../converters/stt-uhabits/uhabitsHelper';
 
-declare module "solid-js" {
+declare module 'solid-js' {
   namespace JSX {
-    interface IntrinsicElements {
-      'activity-grid': any;
-    }
+    interface IntrinsicElements { 'activity-grid': any; }
   }
 }
 
-interface MappingResult {
-  sttTypeId: number;
-  uhabitsHabitId: number;
-  minDuration: number;
-  copySttComments: boolean;
-}
+export type HabitSourceKind = 'stt' | 'timejot';
 
 interface Props {
   mappingId: number;
+  sourceKind: HabitSourceKind;
   sttData: ParsedSttBackup | null;
+  timeJotData: ParsedTimeJotBackup | null;
   uhabitsData: ParsedUHabitsBackup | null;
   onRemove: () => void;
-  ref?: (api: { getMapping: () => MappingResult | null }) => void;
+  onChange: () => void;
+  ref?: (api: { getMapping: () => ConversionMapping | null }) => void;
 }
 
 export const MappingItem: Component<Props> = (props) => {
-  const [sttTypeId, setSttTypeId] = createSignal('');
-  const [uhabitsHabitId, setUhabitsHabitId] = createSignal('');
+  const [sourceId, setSourceId] = createSignal('');
+  const [habitId, setHabitId] = createSignal('');
   const [minDuration, setMinDuration] = createSignal(5);
-  const [copySttComments, setCopySttComments] = createSignal(false);
+  const [copyNotes, setCopyNotes] = createSignal(false);
+  const [numericValue, setNumericValue] = createSignal(1);
   const [currentYear, setCurrentYear] = createSignal(new Date().getFullYear());
-  const [showGrid, setShowGrid] = createSignal(false);
   const [yearInitialized, setYearInitialized] = createSignal(false);
-  const [gridData, setGridData] = createSignal<any[]>([]);
-
   let gridRef: any;
 
-  // Memoized sorted grid data
-  const sortedGridData = createMemo(() => {
-    const data = gridData();
-    return [...data].sort((a, b) => a.date.localeCompare(b.date));
+  const sourceOptions = createMemo(() => {
+    if (props.sourceKind === 'timejot') {
+      return [...(props.timeJotData?.events.values() ?? [])].map(event => ({ id: event.id, label: event.title, archived: Boolean(event.archived) }));
+    }
+    return [...(props.sttData?.recordTypes.values() ?? [])].map(type => ({ id: type.id, label: `${type.emoji} ${type.name}`.trim(), archived: false }));
   });
 
-  const handleSttChange: JSX.EventHandler<HTMLSelectElement, Event> = (e) => {
-    setSttTypeId(e.currentTarget.value);
-    updateGrid();
-  };
+  const habitOptions = createMemo(() => {
+    const active: UHabitsHabit[] = [];
+    const archived: UHabitsHabit[] = [];
+    for (const habit of props.uhabitsData?.allHabits.values() ?? []) (habit.archived ? archived : active).push(habit);
+    const byName = (a: UHabitsHabit, b: UHabitsHabit) => a.name.localeCompare(b.name);
+    return { active: active.sort(byName), archived: archived.sort(byName) };
+  });
 
-  const handleUhabitsChange: JSX.EventHandler<HTMLSelectElement, Event> = (e) => {
-    setUhabitsHabitId(e.currentTarget.value);
-    updateGrid();
-  };
+  const selectedHabit = createMemo(() => props.uhabitsData?.allHabits.get(Number(habitId())) ?? null);
 
-  const handleMinDurationChange: JSX.EventHandler<HTMLInputElement, Event> = (e) => {
-    setMinDuration(parseInt(e.currentTarget.value) || 0);
-    updateGrid();
-  };
+  const sourceDays = createMemo(() => {
+    const selected = Number(sourceId());
+    if (sourceId() === '' || !Number.isInteger(selected)) return new Set<string>();
+    if (props.sourceKind === 'timejot') {
+      return new Set(props.timeJotData?.entries.filter(entry => entry.eventId === selected).map(entry => entry.dayKey) ?? []);
+    }
+    const minimumMs = minDuration() * 60_000;
+    return new Set(props.sttData?.records
+      .filter(record => record.type_id === selected && record.end_timestamp - record.start_timestamp >= minimumMs)
+      .map(record => new Date(record.start_timestamp).toISOString().slice(0, 10)) ?? []);
+  });
 
-  const updateGrid = () => {
-    const sttId = parseInt(sttTypeId());
-    const uhabitsId = parseInt(uhabitsHabitId());
+  const overlap = createMemo(() => {
+    const targetId = Number(habitId());
+    const incoming = sourceDays();
+    const existing = new Set(props.uhabitsData?.repetitions
+      .filter(rep => rep.habit_id === targetId)
+      .map(rep => timestampToDayKey(rep.timestamp)) ?? []);
+    const overlapDays = new Set([...incoming].filter(day => existing.has(day)));
+    const allDays = new Set([...incoming, ...existing]);
+    return {
+      incoming, existing, overlap: overlapDays,
+      additions: incoming.size - overlapDays.size,
+      grid: [...allDays].sort().map(date => ({ date, count: overlapDays.has(date) ? 3 : incoming.has(date) ? 1 : 2 }))
+    };
+  });
 
-    if (!sttId || !uhabitsId || !props.sttData || !props.uhabitsData) {
-      setShowGrid(false);
+  createEffect(() => {
+    const data = overlap().grid;
+    const year = currentYear();
+    if (!yearInitialized() && data.length) {
+      setCurrentYear(Number(data[data.length - 1].date.slice(0, 4)));
+      setYearInitialized(true);
       return;
     }
-
-    setShowGrid(true);
-
-    // Get existing repetitions
-    const existingDates = new Set<string>();
-    const existingData: any[] = [];
-
-    for (const rep of props.uhabitsData.repetitions) {
-      if (rep.habit_id === uhabitsId && rep.value > 0) {
-        const date = new Date(rep.timestamp).toISOString().split('T')[0];
-        existingDates.add(date);
-        existingData.push({ date, count: 2 });
-      }
-    }
-
-    // Get new repetitions from STT
-    const filteredRecords = props.sttData.records.filter((r: SttRecord) => r.end_timestamp - r.start_timestamp >= minDuration() * 60 * 1000);
-    const typeRecords = filteredRecords.filter((r: SttRecord) => r.type_id === sttId);
-    const dayGroups = new Map<string, any[]>();
-
-    for (const record of typeRecords) {
-      const dayStart = new Date(record.start_timestamp);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayStr = dayStart.toISOString().split('T')[0];
-      if (!dayGroups.has(dayStr)) dayGroups.set(dayStr, []);
-      dayGroups.get(dayStr)!.push(record);
-    }
-
-    const newData: any[] = [];
-    for (const [dayStr] of dayGroups) {
-      if (!existingDates.has(dayStr)) {
-        newData.push({ date: dayStr, count: 1 });
-      }
-    }
-
-    // Store grid data in signal
-    setGridData([...existingData, ...newData]);
-
-    // Initialize year once based on data
-    if (!yearInitialized() && (existingData.length > 0 || newData.length > 0)) {
-      const allDates = [...existingData.map(d => d.date), ...newData.map(d => d.date)];
-      allDates.sort();
-      const lastDate = allDates[allDates.length - 1];
-      const lastYear = new Date(lastDate).getFullYear();
-      setCurrentYear(lastYear);
-      setYearInitialized(true);
-    }
-  };
-
-  // Effect to update grid data when it changes
-  createEffect(() => {
-    const isVisible = showGrid();
-    const allData = sortedGridData();
-    const displayYear = currentYear();
-    
-    if (gridRef && isVisible) {
-      const startDate = `${displayYear}-01-01`;
-      const endDate = `${displayYear}-12-31`;
-      
-      // Set in this exact order: data first, then endDate, then startDate
-      // This matches the working vanilla JS implementation
-      gridRef.data = allData;
-      gridRef.endDate = endDate;
-      gridRef.startDate = startDate;
+    if (gridRef) {
+      gridRef.data = data;
+      gridRef.endDate = `${year}-12-31`;
+      gridRef.startDate = `${year}-01-01`;
     }
   });
 
-  const prevYear = () => {
-    setCurrentYear(currentYear() - 1);
-  };
-
-  const nextYear = () => {
-    setCurrentYear(currentYear() + 1);
-  };
-
-  // Expose data for parent to access
-  const getMapping = (): MappingResult | null => {
-    const sttId = parseInt(sttTypeId());
-    const uhabitsId = parseInt(uhabitsHabitId());
-    if (!sttId || !uhabitsId) return null;
+  const getMapping = (): ConversionMapping | null => {
+    const source = Number(sourceId());
+    const target = Number(habitId());
+    if (sourceId() === '' || habitId() === '' || !Number.isInteger(source) || !Number.isInteger(target)) return null;
     return {
-      sttTypeId: sttId,
-      uhabitsHabitId: uhabitsId,
-      minDuration: minDuration(),
-      copySttComments: copySttComments()
+      sourceId: source,
+      uhabitsHabitId: target,
+      minDuration: props.sourceKind === 'stt' ? minDuration() : 0,
+      copySourceNotes: copyNotes(),
+      numericValue: selectedHabit()?.type === 1 ? numericValue() : undefined
     };
   };
 
-  // Expose API to parent via ref callback
-  onMount(() => {
-    props.ref?.({ getMapping });
+  createEffect(() => {
+    sourceId(); habitId(); minDuration(); copyNotes(); numericValue();
+    queueMicrotask(props.onChange);
   });
 
-  onCleanup(() => {
-    props.ref?.(null as any);
-  });
-
-  const sttOptions = createMemo(() => {
-    if (!props.sttData) return [];
-    const options: Array<{ id: number; type: any }> = [];
-    props.sttData.recordTypes.forEach((type: any, id: number) => {
-      options.push({ id, type });
-    });
-    return options;
-  });
-
-  const uhabitsOptions = createMemo(() => {
-    if (!props.uhabitsData) return { active: [], archived: [] };
-    const activeHabits: Array<{ id: number; habit: any }> = [];
-    const archivedHabits: Array<{ id: number; habit: any }> = [];
-
-    props.uhabitsData.booleanHabits.forEach((habit: any, id: number) => {
-      if (habit.archived) {
-        archivedHabits.push({ id, habit });
-      } else {
-        activeHabits.push({ id, habit });
-      }
-    });
-
-    return { active: activeHabits, archived: archivedHabits };
-  });
+  onMount(() => props.ref?.({ getMapping }));
+  onCleanup(() => props.ref?.(null as any));
+  const habitLabel = (habit: UHabitsHabit) => `${habit.name}${habit.type === 1 ? ` · numeric (${habit.unit || 'units'})` : ''}`;
 
   return (
-    <div class="mapping-item" data-mapping-id={props.mappingId}>
+    <article class="mapping-item" data-mapping-id={props.mappingId}>
+      <div class="mapping-header">
+        <span class="mapping-number">Mapping {props.mappingId + 1}</span>
+        <button class="remove-button" aria-label="Remove mapping" onClick={props.onRemove}>×</button>
+      </div>
       <div class="mapping-selects">
-        <select
-          class="stt-activity-select"
-          data-mapping-id={props.mappingId}
-          value={sttTypeId()}
-          onChange={handleSttChange}
-        >
-          <option value="">Select STT activity...</option>
-          <For each={sttOptions()}>
-            {(opt) => (
-              <option value={opt.id.toString()}>
-                {opt.type.emoji} {opt.type.name} (id: {opt.id})
-              </option>
-            )}
-          </For>
-        </select>
-
-        <span class="mapping-arrow">▶</span>
-
-        <select
-          class="uhabits-habit-select"
-          data-mapping-id={props.mappingId}
-          value={uhabitsHabitId()}
-          onChange={handleUhabitsChange}
-        >
-          <option value="">Select uHabits habit...</option>
-          <For each={uhabitsOptions().active}>
-            {(opt) => (
-              <option value={opt.id.toString()}>
-                {opt.habit.name} (id: {opt.id})
-              </option>
-            )}
-          </For>
-          <Show when={uhabitsOptions().archived.length > 0}>
-            <option disabled style={{ color: '#888' }}>
-              ─── Archived ───
-            </option>
-            <For each={uhabitsOptions().archived}>
-              {(opt) => (
-                <option value={opt.id.toString()} style={{ 'font-style': 'italic', opacity: '0.7' }}>
-                  {opt.habit.name} (id: {opt.id})
-                </option>
-              )}
-            </For>
-          </Show>
-        </select>
-
-        <button class="remove-button remove-mapping" aria-label="Remove mapping" onClick={props.onRemove}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
-            <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12"/>
-          </svg>
-        </button>
+        <label><span>{props.sourceKind === 'timejot' ? 'TimeJot event' : 'STT activity'}</span>
+          <select value={sourceId()} onChange={(event: any) => setSourceId(event.currentTarget.value)}>
+            <option value="">Choose source…</option>
+            <For each={sourceOptions()}>{option => <option value={option.id}>{option.label}{option.archived ? ' · archived' : ''}</option>}</For>
+          </select>
+        </label>
+        <span class="mapping-arrow" aria-hidden="true">→</span>
+        <label><span>Loop Habit target</span>
+          <select value={habitId()} onChange={(event: any) => setHabitId(event.currentTarget.value)}>
+            <option value="">Choose habit…</option>
+            <For each={habitOptions().active}>{habit => <option value={habit.id}>{habitLabel(habit)}</option>}</For>
+            <Show when={habitOptions().archived.length}><optgroup label="Archived"><For each={habitOptions().archived}>{habit => <option value={habit.id}>{habitLabel(habit)}</option>}</For></optgroup></Show>
+          </select>
+        </label>
       </div>
-
       <div class="mapping-options">
-        <label class="option-item">
-          <span class="option-label">Min duration:</span>
-          <input
-            type="number"
-            class="min-duration-input"
-            value={minDuration()}
-            min="0"
-            step="1"
-            title="Minimum duration in minutes"
-            onChange={handleMinDurationChange}
-          />
-          <span class="option-unit">min</span>
-        </label>
-        <label class="option-item option-checkbox" title="Copy STT activity comments to repetition notes">
-          <input
-            type="checkbox"
-            class="copy-stt-comments-checkbox"
-            checked={copySttComments()}
-            onChange={(e) => setCopySttComments(e.currentTarget.checked)}
-          />
-          <span class="option-label">Copy comments</span>
-        </label>
+        <Show when={props.sourceKind === 'stt'}><label class="field-inline">Minimum duration <input type="number" min="0" step="1" value={minDuration()} onInput={event => setMinDuration(Number(event.currentTarget.value) || 0)} /> min</label></Show>
+        <Show when={selectedHabit()?.type === 1}><label class="field-inline numeric-value">Value per source day <input type="number" min="0.001" step="0.001" value={numericValue()} onInput={event => setNumericValue(Number(event.currentTarget.value))} /> {selectedHabit()?.unit || 'units'}</label></Show>
+        <label class="checkbox-row"><input type="checkbox" checked={copyNotes()} onChange={event => setCopyNotes(event.currentTarget.checked)} /> Copy source notes</label>
       </div>
-
-      <Show when={showGrid()}>
-        <div class="activity-grid-container">
-          <div class="grid-year-nav">
-            <button class="year-prev" data-mapping-id={props.mappingId} title="Previous year" onClick={prevYear}>
-              ◀
-            </button>
-            <span class="grid-year-display">{currentYear()}</span>
-            <button class="year-next" data-mapping-id={props.mappingId} title="Next year" onClick={nextYear}>
-              ▶
-            </button>
-          </div>
-          <activity-grid
-            ref={gridRef}
-            start-week-on-monday
-            class="habit-preview-grid"
-            dark-mode
-            color-theme="purple"
-          />
+      <Show when={sourceId() !== '' && habitId() !== ''}>
+        <div class="overlap-summary" aria-label="Data overlap summary">
+          <span><strong>{overlap().incoming.size}</strong> source days</span>
+          <span><strong>{overlap().existing.size}</strong> existing</span>
+          <span class="overlap-count"><strong>{overlap().overlap.size}</strong> overlap</span>
+          <span class="addition-count"><strong>+{overlap().additions}</strong> new</span>
         </div>
+        <details class="calendar-preview">
+          <summary>Preview calendar</summary>
+          <div class="grid-year-nav"><button type="button" onClick={() => setCurrentYear(currentYear() - 1)} aria-label="Previous year">←</button><strong>{currentYear()}</strong><button type="button" onClick={() => setCurrentYear(currentYear() + 1)} aria-label="Next year">→</button></div>
+          <div class="grid-scroll"><activity-grid ref={gridRef} start-week-on-monday dark-mode color-theme="purple" /></div>
+          <p class="grid-legend">Lighter = source only · medium = existing only · brightest = overlap</p>
+        </details>
       </Show>
-    </div>
+    </article>
   );
 };

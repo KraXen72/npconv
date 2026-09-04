@@ -9,6 +9,7 @@ import { log } from '../logger';
 import { convertToNewPipe } from '../converters/newpipe-libretube/toNewPipe';
 import { convertToLibreTube } from '../converters/newpipe-libretube/toLibreTube';
 import { convertSttToUHabits } from '../converters/stt-uhabits/toUHabits';
+import { convertTimeJotToUHabits } from '../converters/timejot-uhabits/toUHabits';
 import { createSttStore } from '../stores/sttStore';
 import { downloadFile } from '../utils';
 import type { SqlJsStatic } from 'sql.js';
@@ -24,7 +25,7 @@ export const App: Component<Props> = (props) => {
   const [rightFile, setRightFile] = createSignal<File | null>(null);
   const [includeWatchHistory, setIncludeWatchHistory] = createSignal(true);
   const [processing, setProcessing] = createSignal(false);
-  const [sttMappings, setSttMappings] = createSignal<ConversionMapping[]>([]);
+  const [habitMappings, setHabitMappings] = createSignal<ConversionMapping[]>([]);
 
   // Create STT store
   const sttStore = createSttStore(props.SQL);
@@ -38,12 +39,15 @@ export const App: Component<Props> = (props) => {
   const isNewPipeMode = () => mode() === 'merge' || mode() === 'convert';
 
   // Clear files when switching between different converter types
-  let prevModeType: 'newpipe' | 'stt' = 'newpipe';
+  let prevModeType: 'newpipe' | 'stt' | 'timejot' = 'newpipe';
   const handleModeChange = (newMode: Mode) => {
-    const newModeType = (newMode === 'merge' || newMode === 'convert') ? 'newpipe' : 'stt';
+    const newModeType = (newMode === 'merge' || newMode === 'convert') ? 'newpipe' : newMode;
     if (prevModeType !== newModeType) {
       setLeftFile(null);
       setRightFile(null);
+      sttStore.clearSources();
+      sttStore.clearUHabits();
+      setHabitMappings([]);
     }
     prevModeType = newModeType;
     setMode(newMode);
@@ -64,6 +68,11 @@ export const App: Component<Props> = (props) => {
       title: 'Simple Time Tracker (.backup)',
       hint: 'Upload your .backup file<br>click/drop file to upload',
       accept: '.backup'
+    },
+    timejot: {
+      title: 'TimeJot export (.db)',
+      hint: 'SQLite export from TimeJot<br>tap or drop to choose',
+      accept: '.db'
     }
   };
 
@@ -82,11 +91,20 @@ export const App: Component<Props> = (props) => {
       title: 'uHabits Backup (.db)',
       hint: 'Upload your .db file<br>click/drop file to upload',
       accept: '.db'
+    },
+    timejot: {
+      title: 'Loop Habit backup (.db)',
+      hint: 'The backup to fill<br>tap or drop to choose',
+      accept: '.db'
     }
   };
 
   const handleLeftFileChange = async (file: File | null) => {
     setLeftFile(file);
+    if (!file && (mode() === 'stt' || mode() === 'timejot')) {
+      sttStore.clearSources();
+      return;
+    }
     if (mode() === 'stt' && file) {
       try {
         await sttStore.loadSttFile(file);
@@ -96,12 +114,19 @@ export const App: Component<Props> = (props) => {
         log(`Failed to load STT file: ${errorMsg}`, 'err');
         setLeftFile(null);
       }
+    } else if (mode() === 'timejot' && file) {
+      const loaded = await sttStore.loadTimeJotFile(file);
+      if (!loaded) setLeftFile(null);
     }
   };
 
   const handleRightFileChange = async (file: File | null) => {
     setRightFile(file);
-    if (mode() === 'stt' && file) {
+    if (!file && (mode() === 'stt' || mode() === 'timejot')) {
+      sttStore.clearUHabits();
+      return;
+    }
+    if ((mode() === 'stt' || mode() === 'timejot') && file) {
       try {
         await sttStore.loadUHabitsFile(file);
       } catch (error: unknown) {
@@ -145,16 +170,16 @@ export const App: Component<Props> = (props) => {
     }
   };
 
-  const handleSttConvert = async () => {
-    const sttFile = sttStore.sttFile();
+  const handleHabitConvert = async () => {
+    const sourceFile = mode() === 'timejot' ? sttStore.timeJotFile() : sttStore.sttFile();
     const uhabitsFile = sttStore.uhabitsFile();
 
-    if (!sttFile || !uhabitsFile) {
+    if (!sourceFile || !uhabitsFile) {
       log('Missing required files', 'err');
       return;
     }
 
-    const mappings = sttMappings();
+    const mappings = habitMappings();
 
     if (mappings.length === 0) {
       log('No valid mappings configured', 'err');
@@ -165,14 +190,11 @@ export const App: Component<Props> = (props) => {
       setProcessing(true);
       log('Starting conversion...', 'info');
 
-      const blob = await convertSttToUHabits(
-        sttFile,
-        uhabitsFile,
-        mappings,
-        props.SQL
-      );
+      const blob = mode() === 'timejot'
+        ? await convertTimeJotToUHabits(sourceFile, uhabitsFile, mappings, props.SQL)
+        : await convertSttToUHabits(sourceFile, uhabitsFile, mappings, props.SQL);
 
-      downloadFile(blob, 'uhabits_with_stt.backup', null);
+      downloadFile(blob, `loop-habits-filled-from-${mode()}.db`, null);
       log('Conversion complete! Download started.', 'info');
     } catch (error: any) {
       log(`Conversion failed: ${error.message}`, 'err');
@@ -183,10 +205,16 @@ export const App: Component<Props> = (props) => {
   };
 
   return (
-    <div class="container">
-      <h1>npconv backup converter</h1>
+    <main class="container">
+      <header class="app-header"><div class="brand-mark">n</div><div><h1>npconv</h1><p>Private, in-browser backup tools</p></div></header>
 
       <ModeSelector mode={mode} setMode={handleModeChange} />
+
+      <section id="main-file-area" class="file-area">
+        <FileZone id="zone-left" mode={mode} configs={leftFileConfigs} onFileChange={handleLeftFileChange} />
+        <div class="file-connector" aria-hidden="true">→</div>
+        <FileZone id="zone-right" mode={mode} configs={rightFileConfigs} onFileChange={handleRightFileChange} />
+      </section>
 
       <Show when={mode() === 'merge'}>
         <MergeControls onMerge={(dir, playlist) => processBackup(dir, playlist)} />
@@ -196,12 +224,13 @@ export const App: Component<Props> = (props) => {
         <ConvertControls onConvert={(dir) => processBackup(dir)} />
       </Show>
 
-      <Show when={mode() === 'stt'}>
+      <Show when={mode() === 'stt' || mode() === 'timejot'}>
         <SttControls 
           disabled={processing()} 
           sttStore={sttStore} 
-          onConvert={handleSttConvert}
-          onMappingsChange={setSttMappings}
+          sourceKind={mode() === 'timejot' ? 'timejot' : 'stt'}
+          onConvert={handleHabitConvert}
+          onMappingsChange={setHabitMappings}
         />
       </Show>
 
@@ -217,22 +246,7 @@ export const App: Component<Props> = (props) => {
         </div>
       </Show>
 
-      <section id="main-file-area" class="file-area">
-        <FileZone
-          id="zone-left"
-          mode={mode}
-          configs={leftFileConfigs}
-          onFileChange={handleLeftFileChange}
-        />
-        <FileZone
-          id="zone-right"
-          mode={mode}
-          configs={rightFileConfigs}
-          onFileChange={handleRightFileChange}
-        />
-      </section>
-
       <DebugConsole />
-    </div>
+    </main>
   );
 };
