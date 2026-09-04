@@ -1,5 +1,5 @@
 ## npconv
-Convert between [newpipe](https://github.com/TeamNewPipe/NewPipe) and [libretube](https://github.com/libre-tube/LibreTube) backups. [Go to npconv](https://kraxen72.github.io/npconv/)  
+Convert between [NewPipe](https://github.com/TeamNewPipe/NewPipe) and [LibreTube](https://github.com/libre-tube/LibreTube) backups, or backfill [Loop Habit Tracker](https://github.com/iSoron/uhabits) from Simple Time Tracker and TimeJot. [Go to npconv](https://kraxen72.github.io/npconv/)  
 
 If you have used both apps in the past, for best results, use the `Merge` option.
 I have tested the tool both ways and it worked for me fine.  
@@ -7,6 +7,16 @@ I have tested the tool both ways and it worked for me fine.
 If you have duplicate playlists in LibreTube after importing a backup, go to `App Info`, clear all data, and re-import to fix.  
   
 Conversion happens entirely in browser due to `sql.js`'s wasm implementation of sqlite.  
+
+## habit backfill
+
+1. Export the source data from Simple Time Tracker (`.backup`) or TimeJot (`.db`).
+2. Create a Loop Habit Tracker database backup (`.db`).
+3. Select the matching route and upload both files.
+4. Map source activities/events to boolean or numeric habits. Numeric mappings use a custom value per source day; mappings to the same numeric habit and day are added together.
+5. Review the source, existing, overlap, and new-day counts before creating the filled backup.
+
+Existing Loop Habit entries are never overwritten. All processing stays in the browser.
   
 ## disclaimer
 > **WARNING!**  
@@ -29,4 +39,3 @@ E.g. If you used newpipe 6months ago, then used libretube since now, and are goi
 2. Load your 6-months-old newpipe backup
 3. load your current, latest libretube export
 4. click `Merge into NewPipe`
-
