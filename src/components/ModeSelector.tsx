@@ -23,9 +23,9 @@ export const ModeSelector: Component<Props> = (props) => {
 	return (
 		<section class="conversion-picker" aria-label="Supported conversions">
 			<div class="route-grid">
-				<article class="route-card video-route" classList={{ selected: isVideo() }}>
 					<button
-						class="route-main"
+						class="route-card route-main"
+						classList={{ selected: isVideo() }}
 						type="button"
 						onClick={() => select(props.mode() === "convert" ? "convert" : "merge")}
 						aria-pressed={isVideo()}
@@ -38,29 +38,29 @@ export const ModeSelector: Component<Props> = (props) => {
 							</span>
 							<AppNode icon={<DatabaseBackup size={18} />} name="LibreTube" />
 						</span>
-						<span class="route-status-balancer">&nbsp;</span>
 					</button>
-					<div
-						class="route-actions"
-						role="group"
-						aria-label="NewPipe and LibreTube operation"
-					>
-						<button
-							type="button"
-							classList={{ active: props.mode() === "merge" }}
-							onClick={() => select("merge")}
+					<span class="route-status-balancer">
+						<div
+							class="route-actions"
+							role="group"
+							aria-label="NewPipe and LibreTube operation"
 						>
-							Merge histories
-						</button>
-						<button
-							type="button"
-							classList={{ active: props.mode() === "convert" }}
-							onClick={() => select("convert")}
-						>
-							Convert one backup
-						</button>
-					</div>
-				</article>
+							<button
+								type="button"
+								classList={{ active: props.mode() === "merge" }}
+								onClick={() => select("merge")}
+							>
+								Merge histories
+							</button>
+							<button
+								type="button"
+								classList={{ active: props.mode() === "convert" }}
+								onClick={() => select("convert")}
+							>
+								Convert one backup
+							</button>
+						</div>
+					</span>
 
 				<button
 					class="route-card route-main"

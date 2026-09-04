@@ -151,6 +151,9 @@ h3 {
 	color: var(--text);
 	text-align: left;
 }
+/* .route-card.video-route {
+	grid-template-columns: 1fr min-content;
+} */
 .route-card:hover:not(:disabled),
 .route-card:focus-visible {
 	background: rgba(255, 255, 255, 0.025);
@@ -182,7 +185,7 @@ h3 {
 	text-transform: uppercase;
 }
 .route-status-balancer {
-	flex: 0 0 72px;
+	flex: 0 0 72px
 }
 .route-status.new {
 	color: var(--secondary);
