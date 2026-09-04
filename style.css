@@ -220,7 +220,7 @@ h3 {
 	display: flex;
 	gap: 4px;
 	align-items: center;
-	line-height: 1.25;
+	line-height: 1;
 }
 
 /* Merge/convert control blocks */
@@ -488,21 +488,22 @@ button:active:not(:disabled) {
 } */
 
 .mapping-selects {
-	display: flex;
-	flex-wrap: wrap-reverse;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
 	align-items: center;
 	gap: 12px;
 	margin-bottom: 10px;
 }
 
 .remove-mapping {
-	margin-left: auto;
+	margin-left: 0;
 }
 
 .stt-activity-select,
 .uhabits-habit-select {
-	flex: 1;
-	min-width: 200px;
+	/* flex: 1; */
+	width: 100%;
+	min-width: 0px;
 	padding: 10px 12px;
 	background: #2c2c2c;
 	border: 1px solid var(--border);
@@ -651,6 +652,47 @@ button:active:not(:disabled) {
 	color: var(--text);
 	min-width: 60px;
 	text-align: center;
+}
+
+/* medium-width */
+@media (width < 48rem) {
+	.mapping-selects {
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+
+	.stt-activity-select {
+		grid-column: 1;
+		grid-row: 1;
+	}
+
+	.mapping-arrow {
+		grid-column: 2;
+		grid-row: 1;
+	}
+
+	.uhabits-habit-select {
+		grid-column: 1;
+		grid-row: 2;
+	}
+
+	.remove-mapping {
+		grid-column: 2;
+		grid-row: 2;
+	}
+}
+
+/* narrow layout */
+@media (width < 30rem) {
+	.mapping-selects {
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 10px;
+	}
+
+	.mapping-options {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 12px;
+	}
 }
 
 @media (width >= 52rem) { 
