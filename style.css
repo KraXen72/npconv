@@ -25,7 +25,7 @@ body {
   min-height: 100vh;
   background: var(--bg);
   color: var(--text);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Avenir Next", Avenir, "Segoe UI", "Helvetica Neue", "Adwaita Sans", Cantarell, Ubuntu, Roboto, "Noto Sans", Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -48,7 +48,7 @@ button, label, summary, select { -webkit-tap-highlight-color: transparent; }
   border-bottom: 1px solid var(--border);
 }
 .brand { display: flex; align-items: center; gap: 10px; }
-.header-note { color: var(--muted); font-size: .75rem; }
+.header-icon { display: grid; place-items: center; width: 34px; height: 34px; color: var(--muted); }
 
 .brand-mark {
   display: grid;
@@ -67,7 +67,7 @@ h1, h2, h3, h4, p { margin-top: 0; }
 h2 { margin-bottom: 6px; font-size: clamp(1.2rem, 3vw, 1.65rem); letter-spacing: -.025em; }
 h3 { font-size: 1rem; }
 
-.conversion-picker { margin-bottom: 22px; padding-bottom: 22px; border-bottom: 1px dashed #394153; }
+.conversion-picker { margin-bottom: 24px; }
 .picker-heading { display: flex; justify-content: space-between; align-items: end; gap: 18px; margin-bottom: 13px; }
 .picker-heading h2 { margin-bottom: 0; }
 .privacy-note { padding-bottom: 3px; color: var(--muted); font-size: .76rem; }
@@ -83,7 +83,8 @@ h3 { font-size: 1rem; }
   overflow: hidden;
   border: 0;
   border-bottom: 1px solid var(--border);
-  border-left: 3px solid transparent;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
   border-radius: 0;
   background: transparent;
   color: var(--text);
@@ -95,12 +96,14 @@ h3 { font-size: 1rem; }
 .video-route > .route-main { min-height: 75px; }
 .route-status { flex: 0 0 72px; color: var(--muted); font-size: .67rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .route-status.new { color: var(--secondary); }
-.route-apps { display: grid; grid-template-columns: minmax(110px, 1fr) 34px minmax(110px, 1fr); align-items: center; gap: 8px; width: min(100%, 430px); }
+.route-apps { display: grid; grid-template-columns: minmax(110px, 1fr) 34px minmax(110px, 1fr); align-items: center; gap: 8px; width: 100%; }
 .app-node { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--text); font-size: .76rem; font-weight: 700; line-height: 1.15; }
+.app-node:first-child { flex-direction: row-reverse; justify-self: end; text-align: right; }
+.app-node:last-child { justify-self: start; }
 .app-icon { display: grid; flex: 0 0 auto; place-items: center; width: 33px; height: 33px; border: 1px solid var(--border); border-radius: 2px; background: #20242c; color: #c8cbd2; }
 .route-arrow { display: grid; place-items: center; color: var(--primary); }
 .route-actions { display: grid; grid-template-columns: 1fr 1fr; align-self: stretch; width: 230px; border-left: 1px solid var(--border); }
-.route-actions button { min-height: 38px; padding: 6px 10px; border-radius: 0; background: transparent; color: var(--muted); font-size: .68rem; }
+.route-actions button { min-height: 38px; padding: 6px 10px; border-radius: 0; background: transparent; color: var(--muted); font-size: .82rem; }
 .route-actions button + button { border-left: 1px solid var(--border); }
 .route-actions button.active { background: var(--surface-3); color: var(--secondary); }
 
@@ -111,6 +114,9 @@ h3 { font-size: 1rem; }
   gap: 12px;
   margin-bottom: 24px;
 }
+.selected-tool-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 13px; }
+.selected-tool-heading h2 { margin: 0; font-size: 1.05rem; }
+.selected-tool-heading p { max-width: 460px; margin: 0; color: var(--muted); font-size: .78rem; text-align: right; }
 .file-connector { align-self: center; color: var(--primary); font-size: 1.25rem; font-weight: 800; }
 .drop-zone {
   position: relative;
@@ -259,7 +265,6 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--primary-
 .debug-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 9px; }
 .debug-heading > div { display: flex; align-items: center; gap: 8px; }
 .debug-heading h2 { margin: 0; font-size: .88rem; }
-.debug-heading > span { color: var(--muted); font-size: .72rem; }
 .status-dot { width: 7px; height: 7px; background: var(--primary); }
 .log-warn { color: #fde047; }
 .log-err { color: var(--error); }
@@ -282,7 +287,9 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--primary-
 
 @media (max-width: 480px) {
   .container { padding-inline: 12px; }
-  .header-note { display: none; }
+  .header-icon { display: none; }
+  .selected-tool-heading { display: block; }
+  .selected-tool-heading p { margin-top: 4px; text-align: left; }
   .app-header { margin-bottom: 28px; }
   .route-card, .route-main { min-height: 82px; }
   .route-main { gap: 10px; padding-inline: 10px; }

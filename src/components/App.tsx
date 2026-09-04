@@ -14,7 +14,7 @@ import { createSttStore } from '../stores/sttStore';
 import { downloadFile } from '../utils';
 import type { SqlJsStatic } from 'sql.js';
 import type { ConversionMapping } from '../schemas/uhabits';
-import { ArrowRight, DatabaseBackup } from 'lucide-solid';
+import { ArrowRight, DatabaseBackup, ShieldCheck } from 'lucide-solid';
 
 interface Props {
   SQL: SqlJsStatic;
@@ -38,6 +38,12 @@ export const App: Component<Props> = (props) => {
   });
 
   const isNewPipeMode = () => mode() === 'merge' || mode() === 'convert';
+  const selectedTool = () => ({
+    merge: { title: 'Merge NewPipe and LibreTube', detail: 'Combine both backups, then choose which app receives the result.' },
+    convert: { title: 'Convert a video backup', detail: 'Move one NewPipe or LibreTube backup into the other format.' },
+    stt: { title: 'Backfill from Simple Time Tracker', detail: 'Turn tracked activity days into Loop Habit history.' },
+    timejot: { title: 'Backfill from TimeJot', detail: 'Turn TimeJot event days into boolean or numeric Loop Habit history.' }
+  }[mode()]);
 
   // Clear files when switching between different converter types
   let prevModeType: 'newpipe' | 'stt' | 'timejot' = 'newpipe';
@@ -209,10 +215,15 @@ export const App: Component<Props> = (props) => {
     <main class="container">
       <header class="app-header">
         <div class="brand"><div class="brand-mark"><DatabaseBackup size={20} /></div><div><h1>npconv</h1><p>In-browser backup conversion</p></div></div>
-        <span class="header-note">No account. No upload.</span>
+        <span class="header-icon" title="Processed locally in your browser" aria-label="Processed locally in your browser"><ShieldCheck size={20} /></span>
       </header>
 
       <ModeSelector mode={mode} setMode={handleModeChange} />
+
+      <section class="selected-tool-heading">
+        <h2>{selectedTool().title}</h2>
+        <p>{selectedTool().detail}</p>
+      </section>
 
       <section id="main-file-area" class="file-area">
         <FileZone id="zone-left" mode={mode} configs={leftFileConfigs} onFileChange={handleLeftFileChange} />

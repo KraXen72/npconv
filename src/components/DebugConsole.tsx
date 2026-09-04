@@ -16,8 +16,7 @@ export function DebugConsole() {
   return (
     <section class="debug-panel" aria-labelledby="activity-title">
       <div class="debug-heading">
-        <div><span class="status-dot" aria-hidden="true" /><h2 id="activity-title">Conversion activity</h2></div>
-        <span>Live progress and validation details</span>
+        <div><span class="status-dot" aria-hidden="true" /><h2 id="activity-title">SQL.js log</h2></div>
       </div>
       <div id="debug-console" ref={consoleRef} innerHTML={logStore.logs()} />
     </section>
