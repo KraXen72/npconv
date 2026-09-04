@@ -38,7 +38,7 @@ export const ModeSelector: Component<Props> = (props) => {
 							</span>
 							<AppNode icon={<DatabaseBackup size={18} />} name="LibreTube" />
 						</span>
-						<span class="route-status-balancer"></span>
+						<span class="route-status-balancer">&nbsp;</span>
 					</button>
 					<div
 						class="route-actions"
@@ -77,7 +77,7 @@ export const ModeSelector: Component<Props> = (props) => {
 						</span>
 						<AppNode icon={<RotateCcwClock size={18} />} name="Loop Habits" />
 					</span>
-					<span class="route-status-balancer"></span>
+					<span class="route-status-balancer">&nbsp;</span>
 				</button>
 
 				<button
@@ -95,7 +95,7 @@ export const ModeSelector: Component<Props> = (props) => {
 						</span>
 						<AppNode icon={<RotateCcwClock size={18} />} name="Loop Habits" />
 					</span>
-					<span class="route-status-balancer"></span>
+					<span class="route-status-balancer">&nbsp;</span>
 				</button>
 			</div>
 		</section>
