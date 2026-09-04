@@ -8,15 +8,15 @@ import { selectHabits, selectRepetitions } from '../../db/uhabitsRepo';
  */
 export async function parseUHabitsBackup(file: File, SQL: SqlJsStatic): Promise<ParsedUHabitsBackup> {
 	log('Parsing uHabits backup file...', 'info');
-	
+
 	const arrayBuffer = await file.arrayBuffer();
 	const db = new SQL.Database(new Uint8Array(arrayBuffer));
-	
+
 	const allHabits = new Map<number, UHabitsHabit>();
 	const booleanHabits = new Map<number, UHabitsHabit>();
 	const numericHabits = new Map<number, UHabitsHabit>();
 	const repetitions: UHabitsRepetition[] = [];
-	
+
 	try {
 		for (const habit of selectHabits(db)) {
 			allHabits.set(habit.id, habit);
@@ -24,15 +24,15 @@ export async function parseUHabitsBackup(file: File, SQL: SqlJsStatic): Promise<
 			if (habit.type === 1) numericHabits.set(habit.id, habit);
 		}
 		log(`Loaded ${allHabits.size} habits (${booleanHabits.size} boolean, ${numericHabits.size} numeric)`, 'info');
-		
+
 		repetitions.push(...selectRepetitions(db));
 		log(`Loaded ${repetitions.length} repetitions`, 'info');
-		
+
 	} catch (error) {
 		db.close();
 		throw error;
 	}
-	
+
 	// Return the database object along with parsed data (caller is responsible for closing)
 	return { db, allHabits, booleanHabits, numericHabits, repetitions };
 }

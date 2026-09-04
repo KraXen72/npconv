@@ -15,10 +15,10 @@ export async function convertSttToUHabits(
 	SQL: SqlJsStatic
 ): Promise<Blob> {
 	log('Starting STT → uHabits conversion', 'info');
-	
+
 	const sttData = await parseSttBackup(sttFile);
 	log(`Loaded ${sttData.recordTypes.size} activities, ${sttData.records.length} records`, 'info');
-	
+
 	const uhabits = await parseUHabitsBackup(uhabitsFile, SQL);
 	const { db } = uhabits;
 	const inserted = importMappedDays(db, uhabits, mappings, mapping => {
@@ -38,9 +38,9 @@ export async function convertSttToUHabits(
 	});
 
 	log(`Conversion complete: ${inserted} new repetitions added`, 'info');
-	
+
 	const dbData = exportUHabitsBackup(db);
 	db.close();
-	
+
 	return new Blob([dbData as any], { type: 'application/x-sqlite3' });
 }

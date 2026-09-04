@@ -5,131 +5,131 @@ import type { Mode } from './ModeSelector';
 import { FileCheck2, Upload, X } from 'lucide-solid';
 
 interface FileConfig {
-  title: string;
-  hint: string;
-  accept: string;
+	title: string;
+	hint: string;
+	accept: string;
 }
 
 interface Props {
-  id: string;
-  mode: () => Mode;
-  onFileChange: (file: File | null) => void;
-  configs: Record<Mode, FileConfig>;
+	id: string;
+	mode: () => Mode;
+	onFileChange: (file: File | null) => void;
+	configs: Record<Mode, FileConfig>;
 }
 
 export const FileZone: Component<Props> = (props) => {
-  const [fileName, setFileName] = createSignal<string>('');
-  let fileInputRef: HTMLInputElement | undefined;
-  let prevModeType: 'newpipe' | 'stt' | 'timejot' = 'newpipe';
+	const [fileName, setFileName] = createSignal<string>('');
+	let fileInputRef: HTMLInputElement | undefined;
+	let prevModeType: 'newpipe' | 'stt' | 'timejot' = 'newpipe';
 
-  const config = () => props.configs[props.mode()];
+	const config = () => props.configs[props.mode()];
 
-  // Clear file when switching between converter types
-  createEffect(() => {
-    const currentMode = props.mode();
-    const currentModeType = (currentMode === 'merge' || currentMode === 'convert') ? 'newpipe' : currentMode;
-    
-    if (prevModeType !== currentModeType) {
-      if (fileInputRef) fileInputRef.value = '';
-      setFileName('');
-      props.onFileChange(null);
-    }
-    
-    prevModeType = currentModeType;
-  });
+	// Clear file when switching between converter types
+	createEffect(() => {
+		const currentMode = props.mode();
+		const currentModeType = (currentMode === 'merge' || currentMode === 'convert') ? 'newpipe' : currentMode;
 
-  const handleFileChange = (files: FileList | null) => {
-    const file = files?.[0];
-    
-    if (file) {
-      const allowedExts = config().accept.split(',').map(ext => ext.trim().toLowerCase());
-      const fileNameLower = file.name.toLowerCase();
-      const isValid = allowedExts.some(ext => fileNameLower.endsWith(ext));
-      
-      if (!isValid) {
-        log(`Invalid file type. Expected: ${allowedExts.join(', ')}`, 'err');
-        if (fileInputRef) fileInputRef.value = '';
-        setFileName('');
-        props.onFileChange(null);
-        return;
-      }
-    }
-    
-    setFileName(file ? file.name : '');
-    props.onFileChange(file || null);
-  };
+		if (prevModeType !== currentModeType) {
+			if (fileInputRef) fileInputRef.value = '';
+			setFileName('');
+			props.onFileChange(null);
+		}
 
-  return (
-    <div
-      class="drop-zone"
-      id={props.id}
-      role="button"
-      tabindex="0"
-      aria-label={`Select ${config().title}`}
-      onClick={(e) => {
-        if (e.target === fileInputRef || (e.target as HTMLElement).closest('.clear-file')) return;
-        fileInputRef?.click();
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          fileInputRef?.click();
-        }
-      }}
-      onDragOver={(e) => {
-        e.preventDefault();
-        e.currentTarget.classList.add('active');
-      }}
-      onDragLeave={(e) => {
-        e.currentTarget.classList.remove('active');
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        e.currentTarget.classList.remove('active');
-        const files = e.dataTransfer?.files;
-        if (files && files.length && fileInputRef) {
-          try {
-            const dt = new DataTransfer();
-            for (let i = 0; i < files.length; i++) dt.items.add(files[i]);
-            fileInputRef.files = dt.files;
-            handleFileChange(dt.files);
-          } catch (err) {
-            const errorMsg = err instanceof Error ? err.message : String(err);
-            log(`Could not set input.files programmatically: ${errorMsg}`, 'err');
-          }
-        }
-      }}
-    >
-      <button
-        class="clear-file remove-button"
-        aria-label="Clear file"
-        style={{ display: fileName() ? 'flex' : 'none' }}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (fileInputRef) fileInputRef.value = '';
-          setFileName('');
-          props.onFileChange(null);
-        }}
-      >
-        <X size={18} />
-      </button>
-      
-      <div class="zone-icon"><Show when={fileName()} fallback={<Upload size={20} />}><FileCheck2 size={20} /></Show></div>
-      <h4 class="zone-title">{config().title}</h4>
-      <p>
-        <small class="hint zone-hint" innerHTML={config().hint} />
-      </p>
-      
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept={config().accept}
-        onChange={(e) => handleFileChange(e.currentTarget.files)}
-      />
-      
-      <div class="file-name" aria-live="polite">
-        {fileName()}
-      </div>
-    </div>
-  );
+		prevModeType = currentModeType;
+	});
+
+	const handleFileChange = (files: FileList | null) => {
+		const file = files?.[0];
+
+		if (file) {
+			const allowedExts = config().accept.split(',').map(ext => ext.trim().toLowerCase());
+			const fileNameLower = file.name.toLowerCase();
+			const isValid = allowedExts.some(ext => fileNameLower.endsWith(ext));
+
+			if (!isValid) {
+				log(`Invalid file type. Expected: ${allowedExts.join(', ')}`, 'err');
+				if (fileInputRef) fileInputRef.value = '';
+				setFileName('');
+				props.onFileChange(null);
+				return;
+			}
+		}
+
+		setFileName(file ? file.name : '');
+		props.onFileChange(file || null);
+	};
+
+	return (
+		<div
+			class="drop-zone"
+			id={props.id}
+			role="button"
+			tabindex="0"
+			aria-label={`Select ${config().title}`}
+			onClick={(e) => {
+				if (e.target === fileInputRef || (e.target as HTMLElement).closest('.clear-file')) return;
+				fileInputRef?.click();
+			}}
+			onKeyDown={(e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					fileInputRef?.click();
+				}
+			}}
+			onDragOver={(e) => {
+				e.preventDefault();
+				e.currentTarget.classList.add('active');
+			}}
+			onDragLeave={(e) => {
+				e.currentTarget.classList.remove('active');
+			}}
+			onDrop={(e) => {
+				e.preventDefault();
+				e.currentTarget.classList.remove('active');
+				const files = e.dataTransfer?.files;
+				if (files && files.length && fileInputRef) {
+					try {
+						const dt = new DataTransfer();
+						for (let i = 0; i < files.length; i++) dt.items.add(files[i]);
+						fileInputRef.files = dt.files;
+						handleFileChange(dt.files);
+					} catch (err) {
+						const errorMsg = err instanceof Error ? err.message : String(err);
+						log(`Could not set input.files programmatically: ${errorMsg}`, 'err');
+					}
+				}
+			}}
+		>
+			<button
+				class="clear-file remove-button"
+				aria-label="Clear file"
+				style={{ display: fileName() ? 'flex' : 'none' }}
+				onClick={(e) => {
+					e.stopPropagation();
+					if (fileInputRef) fileInputRef.value = '';
+					setFileName('');
+					props.onFileChange(null);
+				}}
+			>
+				<X size={18} />
+			</button>
+
+			<div class="zone-icon"><Show when={fileName()} fallback={<Upload size={20} />}><FileCheck2 size={20} /></Show></div>
+			<h4 class="zone-title">{config().title}</h4>
+			<p>
+				<small class="hint zone-hint" innerHTML={config().hint} />
+			</p>
+
+			<input
+				ref={fileInputRef}
+				type="file"
+				accept={config().accept}
+				onChange={(e) => handleFileChange(e.currentTarget.files)}
+			/>
+
+			<div class="file-name" aria-live="polite">
+				{fileName()}
+			</div>
+		</div>
+	);
 };

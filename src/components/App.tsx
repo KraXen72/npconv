@@ -17,251 +17,251 @@ import type { ConversionMapping } from '../schemas/uhabits';
 import { ArrowRight, DatabaseBackup, ShieldCheck } from 'lucide-solid';
 
 interface Props {
-  SQL: SqlJsStatic;
+	SQL: SqlJsStatic;
 }
 
 export const App: Component<Props> = (props) => {
-  const [mode, setMode] = createSignal<Mode>('merge');
-  const [leftFile, setLeftFile] = createSignal<File | null>(null);
-  const [rightFile, setRightFile] = createSignal<File | null>(null);
-  const [includeWatchHistory, setIncludeWatchHistory] = createSignal(true);
-  const [processing, setProcessing] = createSignal(false);
-  const [habitMappings, setHabitMappings] = createSignal<ConversionMapping[]>([]);
+	const [mode, setMode] = createSignal<Mode>('merge');
+	const [leftFile, setLeftFile] = createSignal<File | null>(null);
+	const [rightFile, setRightFile] = createSignal<File | null>(null);
+	const [includeWatchHistory, setIncludeWatchHistory] = createSignal(true);
+	const [processing, setProcessing] = createSignal(false);
+	const [habitMappings, setHabitMappings] = createSignal<ConversionMapping[]>([]);
 
-  // Create STT store
-  const sttStore = createSttStore(props.SQL);
+	// Create STT store
+	const sttStore = createSttStore(props.SQL);
 
-  // Cleanup on unmount
-  onCleanup(() => {
-    const data = sttStore.uhabitsData();
-    if (data?.db) data.db.close();
-  });
+	// Cleanup on unmount
+	onCleanup(() => {
+		const data = sttStore.uhabitsData();
+		if (data?.db) data.db.close();
+	});
 
-  const isNewPipeMode = () => mode() === 'merge' || mode() === 'convert';
-  const selectedTool = () => ({
-    merge: { title: 'Merge NewPipe and LibreTube', detail: 'Combine both backups, then choose which app receives the result.' },
-    convert: { title: 'Convert a video backup', detail: 'Move one NewPipe or LibreTube backup into the other format.' },
-    stt: { title: 'Backfill from Simple Time Tracker', detail: 'Turn tracked activity days into Loop Habit history.' },
-    timejot: { title: 'Backfill from TimeJot', detail: 'Turn TimeJot event days into boolean or numeric Loop Habit history.' }
-  }[mode()]);
+	const isNewPipeMode = () => mode() === 'merge' || mode() === 'convert';
+	const selectedTool = () => ({
+		merge: { title: 'Merge NewPipe and LibreTube', detail: 'Combine both backups, then choose which app receives the result.' },
+		convert: { title: 'Convert a video backup', detail: 'Move one NewPipe or LibreTube backup into the other format.' },
+		stt: { title: 'Backfill from Simple Time Tracker', detail: 'Turn tracked activity days into Loop Habit history.' },
+		timejot: { title: 'Backfill from TimeJot', detail: 'Turn TimeJot event days into boolean or numeric Loop Habit history.' }
+	}[mode()]);
 
-  // Clear files when switching between different converter types
-  let prevModeType: 'newpipe' | 'stt' | 'timejot' = 'newpipe';
-  const handleModeChange = (newMode: Mode) => {
-    const newModeType = (newMode === 'merge' || newMode === 'convert') ? 'newpipe' : newMode;
-    if (prevModeType !== newModeType) {
-      setLeftFile(null);
-      setRightFile(null);
-      sttStore.clearSources();
-      sttStore.clearUHabits();
-      setHabitMappings([]);
-    }
-    prevModeType = newModeType;
-    setMode(newMode);
-  };
+	// Clear files when switching between different converter types
+	let prevModeType: 'newpipe' | 'stt' | 'timejot' = 'newpipe';
+	const handleModeChange = (newMode: Mode) => {
+		const newModeType = (newMode === 'merge' || newMode === 'convert') ? 'newpipe' : newMode;
+		if (prevModeType !== newModeType) {
+			setLeftFile(null);
+			setRightFile(null);
+			sttStore.clearSources();
+			sttStore.clearUHabits();
+			setHabitMappings([]);
+		}
+		prevModeType = newModeType;
+		setMode(newMode);
+	};
 
-  const leftFileConfigs = {
-    merge: {
-      title: 'NewPipe Backup (.zip)',
-      hint: 'Contains newpipe.db<br>click/drop file to upload',
-      accept: '.zip'
-    },
-    convert: {
-      title: 'NewPipe Backup (.zip)',
-      hint: 'Contains newpipe.db<br>click/drop file to upload',
-      accept: '.zip'
-    },
-    stt: {
-      title: 'Simple Time Tracker (.backup)',
-      hint: 'Upload your .backup file<br>click/drop file to upload',
-      accept: '.backup'
-    },
-    timejot: {
-      title: 'TimeJot export (.db)',
-      hint: 'SQLite export from TimeJot<br>tap or drop to choose',
-      accept: '.db'
-    }
-  };
+	const leftFileConfigs = {
+		merge: {
+			title: 'NewPipe Backup (.zip)',
+			hint: 'Contains newpipe.db<br>click/drop file to upload',
+			accept: '.zip'
+		},
+		convert: {
+			title: 'NewPipe Backup (.zip)',
+			hint: 'Contains newpipe.db<br>click/drop file to upload',
+			accept: '.zip'
+		},
+		stt: {
+			title: 'Simple Time Tracker (.backup)',
+			hint: 'Upload your .backup file<br>click/drop file to upload',
+			accept: '.backup'
+		},
+		timejot: {
+			title: 'TimeJot export (.db)',
+			hint: 'SQLite export from TimeJot<br>tap or drop to choose',
+			accept: '.db'
+		}
+	};
 
-  const rightFileConfigs = {
-    merge: {
-      title: 'LibreTube Backup (.json)',
-      hint: 'JSON export file<br>click/drop file to upload',
-      accept: '.json'
-    },
-    convert: {
-      title: 'LibreTube Backup (.json)',
-      hint: 'JSON export file<br>click/drop file to upload',
-      accept: '.json'
-    },
-    stt: {
-      title: 'uHabits Backup (.db)',
-      hint: 'Upload your .db file<br>click/drop file to upload',
-      accept: '.db'
-    },
-    timejot: {
-      title: 'Loop Habit backup (.db)',
-      hint: 'The backup to fill<br>tap or drop to choose',
-      accept: '.db'
-    }
-  };
+	const rightFileConfigs = {
+		merge: {
+			title: 'LibreTube Backup (.json)',
+			hint: 'JSON export file<br>click/drop file to upload',
+			accept: '.json'
+		},
+		convert: {
+			title: 'LibreTube Backup (.json)',
+			hint: 'JSON export file<br>click/drop file to upload',
+			accept: '.json'
+		},
+		stt: {
+			title: 'uHabits Backup (.db)',
+			hint: 'Upload your .db file<br>click/drop file to upload',
+			accept: '.db'
+		},
+		timejot: {
+			title: 'Loop Habit backup (.db)',
+			hint: 'The backup to fill<br>tap or drop to choose',
+			accept: '.db'
+		}
+	};
 
-  const handleLeftFileChange = async (file: File | null) => {
-    setLeftFile(file);
-    if (!file && (mode() === 'stt' || mode() === 'timejot')) {
-      sttStore.clearSources();
-      return;
-    }
-    if (mode() === 'stt' && file) {
-      try {
-        await sttStore.loadSttFile(file);
-      } catch (error: unknown) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        console.error('Failed to load STT file:', errorMsg);
-        log(`Failed to load STT file: ${errorMsg}`, 'err');
-        setLeftFile(null);
-      }
-    } else if (mode() === 'timejot' && file) {
-      const loaded = await sttStore.loadTimeJotFile(file);
-      if (!loaded) setLeftFile(null);
-    }
-  };
+	const handleLeftFileChange = async (file: File | null) => {
+		setLeftFile(file);
+		if (!file && (mode() === 'stt' || mode() === 'timejot')) {
+			sttStore.clearSources();
+			return;
+		}
+		if (mode() === 'stt' && file) {
+			try {
+				await sttStore.loadSttFile(file);
+			} catch (error: unknown) {
+				const errorMsg = error instanceof Error ? error.message : String(error);
+				console.error('Failed to load STT file:', errorMsg);
+				log(`Failed to load STT file: ${errorMsg}`, 'err');
+				setLeftFile(null);
+			}
+		} else if (mode() === 'timejot' && file) {
+			const loaded = await sttStore.loadTimeJotFile(file);
+			if (!loaded) setLeftFile(null);
+		}
+	};
 
-  const handleRightFileChange = async (file: File | null) => {
-    setRightFile(file);
-    if (!file && (mode() === 'stt' || mode() === 'timejot')) {
-      sttStore.clearUHabits();
-      return;
-    }
-    if ((mode() === 'stt' || mode() === 'timejot') && file) {
-      try {
-        await sttStore.loadUHabitsFile(file);
-      } catch (error: unknown) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        console.error('Failed to load uHabits file:', errorMsg);
-        log(`Failed to load uHabits file: ${errorMsg}`, 'err');
-        setRightFile(null);
-      }
-    }
-  };
+	const handleRightFileChange = async (file: File | null) => {
+		setRightFile(file);
+		if (!file && (mode() === 'stt' || mode() === 'timejot')) {
+			sttStore.clearUHabits();
+			return;
+		}
+		if ((mode() === 'stt' || mode() === 'timejot') && file) {
+			try {
+				await sttStore.loadUHabitsFile(file);
+			} catch (error: unknown) {
+				const errorMsg = error instanceof Error ? error.message : String(error);
+				console.error('Failed to load uHabits file:', errorMsg);
+				log(`Failed to load uHabits file: ${errorMsg}`, 'err');
+				setRightFile(null);
+			}
+		}
+	};
 
-  const processBackup = async (direction: 'to_newpipe' | 'to_libretube', playlistBehavior?: string) => {
-    const currentMode = mode();
-    const npFile = leftFile();
-    const ltFile = rightFile();
+	const processBackup = async (direction: 'to_newpipe' | 'to_libretube', playlistBehavior?: string) => {
+		const currentMode = mode();
+		const npFile = leftFile();
+		const ltFile = rightFile();
 
-    if (currentMode === 'merge' && (!npFile || !ltFile)) {
-      return log("Merge mode requires BOTH files.", "err");
-    }
-    if (currentMode === 'convert') {
-      if (direction === 'to_newpipe' && !ltFile) return log("Missing LibreTube source file.", "err");
-      if (direction === 'to_libretube' && !npFile) return log("Missing NewPipe source file.", "err");
-    }
+		if (currentMode === 'merge' && (!npFile || !ltFile)) {
+			return log("Merge mode requires BOTH files.", "err");
+		}
+		if (currentMode === 'convert') {
+			if (direction === 'to_newpipe' && !ltFile) return log("Missing LibreTube source file.", "err");
+			if (direction === 'to_libretube' && !npFile) return log("Missing NewPipe source file.", "err");
+		}
 
-    try {
-      setProcessing(true);
-      if (direction === 'to_newpipe') {
-        if (!ltFile) return log("Missing LibreTube source file.", "err");
-        await convertToNewPipe(npFile ?? undefined, ltFile, currentMode, props.SQL, playlistBehavior);
-      } else {
-        if (!npFile) return log("Missing NewPipe source file.", "err");
-        await convertToLibreTube(npFile, ltFile ?? undefined, currentMode, props.SQL, playlistBehavior, includeWatchHistory());
-      }
-    } catch (e: any) {
-      log(`FATAL ERROR: ${e.message || e.toString() || 'An unknown error occurred'}`, "err");
-      if (e.stack) log(`Stack Trace: ${e.stack}`, "err");
-      else log(`Error Object: ${e.toString()}`, "err");
-      console.error(e);
-    } finally {
-      setProcessing(false);
-    }
-  };
+		try {
+			setProcessing(true);
+			if (direction === 'to_newpipe') {
+				if (!ltFile) return log("Missing LibreTube source file.", "err");
+				await convertToNewPipe(npFile ?? undefined, ltFile, currentMode, props.SQL, playlistBehavior);
+			} else {
+				if (!npFile) return log("Missing NewPipe source file.", "err");
+				await convertToLibreTube(npFile, ltFile ?? undefined, currentMode, props.SQL, playlistBehavior, includeWatchHistory());
+			}
+		} catch (e: any) {
+			log(`FATAL ERROR: ${e.message || e.toString() || 'An unknown error occurred'}`, "err");
+			if (e.stack) log(`Stack Trace: ${e.stack}`, "err");
+			else log(`Error Object: ${e.toString()}`, "err");
+			console.error(e);
+		} finally {
+			setProcessing(false);
+		}
+	};
 
-  const handleHabitConvert = async () => {
-    const sourceFile = mode() === 'timejot' ? sttStore.timeJotFile() : sttStore.sttFile();
-    const uhabitsFile = sttStore.uhabitsFile();
+	const handleHabitConvert = async () => {
+		const sourceFile = mode() === 'timejot' ? sttStore.timeJotFile() : sttStore.sttFile();
+		const uhabitsFile = sttStore.uhabitsFile();
 
-    if (!sourceFile || !uhabitsFile) {
-      log('Missing required files', 'err');
-      return;
-    }
+		if (!sourceFile || !uhabitsFile) {
+			log('Missing required files', 'err');
+			return;
+		}
 
-    const mappings = habitMappings();
+		const mappings = habitMappings();
 
-    if (mappings.length === 0) {
-      log('No valid mappings configured', 'err');
-      return;
-    }
+		if (mappings.length === 0) {
+			log('No valid mappings configured', 'err');
+			return;
+		}
 
-    try {
-      setProcessing(true);
-      log('Starting conversion...', 'info');
+		try {
+			setProcessing(true);
+			log('Starting conversion...', 'info');
 
-      const blob = mode() === 'timejot'
-        ? await convertTimeJotToUHabits(sourceFile, uhabitsFile, mappings, props.SQL)
-        : await convertSttToUHabits(sourceFile, uhabitsFile, mappings, props.SQL);
+			const blob = mode() === 'timejot'
+				? await convertTimeJotToUHabits(sourceFile, uhabitsFile, mappings, props.SQL)
+				: await convertSttToUHabits(sourceFile, uhabitsFile, mappings, props.SQL);
 
-      downloadFile(blob, `loop-habits-filled-from-${mode()}.db`, null);
-      log('Conversion complete! Download started.', 'info');
-    } catch (error: any) {
-      log(`Conversion failed: ${error.message}`, 'err');
-      console.error(error);
-    } finally {
-      setProcessing(false);
-    }
-  };
+			downloadFile(blob, `loop-habits-filled-from-${mode()}.db`, null);
+			log('Conversion complete! Download started.', 'info');
+		} catch (error: any) {
+			log(`Conversion failed: ${error.message}`, 'err');
+			console.error(error);
+		} finally {
+			setProcessing(false);
+		}
+	};
 
-  return (
-    <main class="container">
-      <header class="app-header">
-        <div class="brand"><div class="brand-mark"><DatabaseBackup size={20} /></div><div><h1>npconv</h1><p>In-browser backup conversion</p></div></div>
-        <span class="header-icon" title="Processed locally in your browser" aria-label="Processed locally in your browser"><ShieldCheck size={20} /></span>
-      </header>
+	return (
+		<main class="container">
+			<header class="app-header">
+				<div class="brand"><div class="brand-mark"><DatabaseBackup size={20} /></div><div><h1>npconv</h1><p>In-browser backup conversion</p></div></div>
+				<span class="header-icon" title="Processed locally in your browser" aria-label="Processed locally in your browser"><ShieldCheck size={20} /></span>
+			</header>
 
-      <ModeSelector mode={mode} setMode={handleModeChange} />
+			<ModeSelector mode={mode} setMode={handleModeChange} />
 
-      <section class="selected-tool-heading">
-        <h2>{selectedTool().title}</h2>
-        <p>{selectedTool().detail}</p>
-      </section>
+			<section class="selected-tool-heading">
+				<h2>{selectedTool().title}</h2>
+				<p>{selectedTool().detail}</p>
+			</section>
 
-      <section id="main-file-area" class="file-area">
-        <FileZone id="zone-left" mode={mode} configs={leftFileConfigs} onFileChange={handleLeftFileChange} />
-        <div class="file-connector" aria-hidden="true"><ArrowRight size={20} /></div>
-        <FileZone id="zone-right" mode={mode} configs={rightFileConfigs} onFileChange={handleRightFileChange} />
-      </section>
+			<section id="main-file-area" class="file-area">
+				<FileZone id="zone-left" mode={mode} configs={leftFileConfigs} onFileChange={handleLeftFileChange} />
+				<div class="file-connector" aria-hidden="true"><ArrowRight size={20} /></div>
+				<FileZone id="zone-right" mode={mode} configs={rightFileConfigs} onFileChange={handleRightFileChange} />
+			</section>
 
-      <Show when={mode() === 'merge'}>
-        <MergeControls onMerge={(dir, playlist) => processBackup(dir, playlist)} />
-      </Show>
+			<Show when={mode() === 'merge'}>
+				<MergeControls onMerge={(dir, playlist) => processBackup(dir, playlist)} />
+			</Show>
 
-      <Show when={mode() === 'convert'}>
-        <ConvertControls onConvert={(dir) => processBackup(dir)} />
-      </Show>
+			<Show when={mode() === 'convert'}>
+				<ConvertControls onConvert={(dir) => processBackup(dir)} />
+			</Show>
 
-      <Show when={mode() === 'stt' || mode() === 'timejot'}>
-        <SttControls 
-          disabled={processing()} 
-          sttStore={sttStore} 
-          sourceKind={mode() === 'timejot' ? 'timejot' : 'stt'}
-          onConvert={handleHabitConvert}
-          onMappingsChange={setHabitMappings}
-        />
-      </Show>
+			<Show when={mode() === 'stt' || mode() === 'timejot'}>
+				<SttControls
+					disabled={processing()}
+					sttStore={sttStore}
+					sourceKind={mode() === 'timejot' ? 'timejot' : 'stt'}
+					onConvert={handleHabitConvert}
+					onMappingsChange={setHabitMappings}
+				/>
+			</Show>
 
-      <Show when={isNewPipeMode()}>
-        <div id="global-options">
-          <label for="include-watch-history">Include watch history:</label>
-          <input
-            type="checkbox"
-            id="include-watch-history"
-            checked={includeWatchHistory()}
-            onChange={(e) => setIncludeWatchHistory(e.currentTarget.checked)}
-          />
-        </div>
-      </Show>
+			<Show when={isNewPipeMode()}>
+				<div id="global-options">
+					<label for="include-watch-history">Include watch history:</label>
+					<input
+						type="checkbox"
+						id="include-watch-history"
+						checked={includeWatchHistory()}
+						onChange={(e) => setIncludeWatchHistory(e.currentTarget.checked)}
+					/>
+				</div>
+			</Show>
 
-      <DebugConsole />
-    </main>
-  );
+			<DebugConsole />
+		</main>
+	);
 };
