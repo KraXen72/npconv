@@ -22,7 +22,7 @@ export const MergeControls: Component<Props> = (props) => {
 
   return (
     <section id="action-newpipe-libretube-merge" class="controls-block">
-      <h3>NewPipe Γçî LibreTube: Merge</h3>
+      <h3>NewPipe ⇌ LibreTube: Merge</h3>
       
       <div class="merge-options">
         <label for="playlist-behavior">Playlists handling:</label>
