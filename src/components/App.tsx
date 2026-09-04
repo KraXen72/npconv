@@ -14,6 +14,7 @@ import { createSttStore } from '../stores/sttStore';
 import { downloadFile } from '../utils';
 import type { SqlJsStatic } from 'sql.js';
 import type { ConversionMapping } from '../schemas/uhabits';
+import { ArrowRight, DatabaseBackup } from 'lucide-solid';
 
 interface Props {
   SQL: SqlJsStatic;
@@ -206,13 +207,16 @@ export const App: Component<Props> = (props) => {
 
   return (
     <main class="container">
-      <header class="app-header"><div class="brand-mark">n</div><div><h1>npconv</h1><p>Private, in-browser backup tools</p></div></header>
+      <header class="app-header">
+        <div class="brand"><div class="brand-mark"><DatabaseBackup size={20} /></div><div><h1>npconv</h1><p>In-browser backup conversion</p></div></div>
+        <span class="header-note">No account. No upload.</span>
+      </header>
 
       <ModeSelector mode={mode} setMode={handleModeChange} />
 
       <section id="main-file-area" class="file-area">
         <FileZone id="zone-left" mode={mode} configs={leftFileConfigs} onFileChange={handleLeftFileChange} />
-        <div class="file-connector" aria-hidden="true">→</div>
+        <div class="file-connector" aria-hidden="true"><ArrowRight size={20} /></div>
         <FileZone id="zone-right" mode={mode} configs={rightFileConfigs} onFileChange={handleRightFileChange} />
       </section>
 

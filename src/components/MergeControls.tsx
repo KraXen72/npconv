@@ -1,5 +1,6 @@
 import type { Component, JSX } from 'solid-js';
 import { createSignal } from 'solid-js';
+import { ArrowUp } from 'lucide-solid';
 
 interface Props {
   onMerge: (direction: 'to_newpipe' | 'to_libretube', playlistBehavior: string) => void;
@@ -49,10 +50,7 @@ export const MergeControls: Component<Props> = (props) => {
             onChange={handleDirectionChange}
           />
           <span class="slider" aria-hidden="true">
-            <svg class="toggle-arrow" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
-              <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M9 13a1 1 0 0 0-1-1H5.061a1 1 0 0 1-.75-1.811l6.836-6.835a1.207 1.207 0 0 1 1.707 0l6.835 6.835a1 1 0 0 1-.75 1.811H16a1 1 0 0 0-1 1v6a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1z" />
-            </svg>
+            <ArrowUp class="toggle-arrow" size={20} aria-hidden="true" />
           </span>
         </label>
         <span class="dir-label">LibreTube</span>

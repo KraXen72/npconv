@@ -2,6 +2,7 @@ import { createSignal, For, onMount, onCleanup, createEffect, type Component } f
 import { MappingItem, type HabitSourceKind } from './MappingItem';
 import type { SttStore } from '../stores/sttStore';
 import type { ConversionMapping } from '../schemas/uhabits';
+import { Plus } from 'lucide-solid';
 
 interface Props {
   disabled: boolean;
@@ -84,7 +85,7 @@ export const SttControls: Component<Props> = (props) => {
   return (
     <section id="action-stt-uhabits-fill" class="import-workspace">
       <div class="section-heading">
-        <div><span class="eyebrow">Backfill habits</span><h2>{props.sourceKind === 'timejot' ? 'TimeJot → Loop Habit Tracker' : 'Simple Time Tracker → Loop Habit Tracker'}</h2></div>
+        <div><span class="eyebrow">Backfill habits</span><h2>{props.sourceKind === 'timejot' ? 'TimeJot to Loop Habit Tracker' : 'Simple Time Tracker to Loop Habit Tracker'}</h2></div>
         <p>Choose what maps where. Existing target dates are never overwritten.</p>
       </div>
 
@@ -107,7 +108,7 @@ export const SttControls: Component<Props> = (props) => {
           </For>
         </div>
         <button id="add-mapping" type="button" onClick={addMapping}>
-          + Add another mapping
+          <Plus size={17} /> Add another mapping
         </button>
       </div>
 

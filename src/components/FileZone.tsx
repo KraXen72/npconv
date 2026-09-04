@@ -1,7 +1,8 @@
 import type { Component, JSX } from 'solid-js';
-import { createSignal, createEffect } from 'solid-js';
+import { createSignal, createEffect, Show } from 'solid-js';
 import { log } from '../logger';
 import type { Mode } from './ModeSelector';
+import { FileCheck2, Upload, X } from 'lucide-solid';
 
 interface FileConfig {
   title: string;
@@ -110,11 +111,10 @@ export const FileZone: Component<Props> = (props) => {
           props.onFileChange(null);
         }}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
-          <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12"/>
-        </svg>
+        <X size={18} />
       </button>
       
+      <div class="zone-icon"><Show when={fileName()} fallback={<Upload size={20} />}><FileCheck2 size={20} /></Show></div>
       <h4 class="zone-title">{config().title}</h4>
       <p>
         <small class="hint zone-hint" innerHTML={config().hint} />

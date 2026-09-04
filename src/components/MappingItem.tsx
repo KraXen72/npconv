@@ -3,6 +3,7 @@ import type { ParsedSttBackup } from '../schemas/stt';
 import type { ParsedTimeJotBackup } from '../schemas/timejot';
 import type { ConversionMapping, ParsedUHabitsBackup, UHabitsHabit } from '../schemas/uhabits';
 import { timestampToDayKey } from '../converters/stt-uhabits/uhabitsHelper';
+import { ArrowRight, ChevronLeft, ChevronRight, X } from 'lucide-solid';
 
 declare module 'solid-js' {
   namespace JSX {
@@ -118,7 +119,7 @@ export const MappingItem: Component<Props> = (props) => {
     <article class="mapping-item" data-mapping-id={props.mappingId}>
       <div class="mapping-header">
         <span class="mapping-number">Mapping {props.mappingId + 1}</span>
-        <button class="remove-button" aria-label="Remove mapping" onClick={props.onRemove}>×</button>
+        <button class="remove-button" aria-label="Remove mapping" onClick={props.onRemove}><X size={17} /></button>
       </div>
       <div class="mapping-selects">
         <label><span>{props.sourceKind === 'timejot' ? 'TimeJot event' : 'STT activity'}</span>
@@ -127,7 +128,7 @@ export const MappingItem: Component<Props> = (props) => {
             <For each={sourceOptions()}>{option => <option value={option.id}>{option.label}{option.archived ? ' · archived' : ''}</option>}</For>
           </select>
         </label>
-        <span class="mapping-arrow" aria-hidden="true">→</span>
+        <span class="mapping-arrow" aria-hidden="true"><ArrowRight size={19} /></span>
         <label><span>Loop Habit target</span>
           <select value={habitId()} onChange={(event: any) => setHabitId(event.currentTarget.value)}>
             <option value="">Choose habit…</option>
@@ -146,11 +147,11 @@ export const MappingItem: Component<Props> = (props) => {
           <span><strong>{overlap().incoming.size}</strong> source days</span>
           <span><strong>{overlap().existing.size}</strong> existing</span>
           <span class="overlap-count"><strong>{overlap().overlap.size}</strong> overlap</span>
-          <span class="addition-count"><strong>+{overlap().additions}</strong> new</span>
+          <span class="addition-count"><strong>{overlap().additions}</strong> new</span>
         </div>
         <details class="calendar-preview">
           <summary>Preview calendar</summary>
-          <div class="grid-year-nav"><button type="button" onClick={() => setCurrentYear(currentYear() - 1)} aria-label="Previous year">←</button><strong>{currentYear()}</strong><button type="button" onClick={() => setCurrentYear(currentYear() + 1)} aria-label="Next year">→</button></div>
+          <div class="grid-year-nav"><button type="button" onClick={() => setCurrentYear(currentYear() - 1)} aria-label="Previous year"><ChevronLeft size={16} /></button><strong>{currentYear()}</strong><button type="button" onClick={() => setCurrentYear(currentYear() + 1)} aria-label="Next year"><ChevronRight size={16} /></button></div>
           <div class="grid-scroll"><activity-grid ref={gridRef} start-week-on-monday dark-mode color-theme="purple" /></div>
           <p class="grid-legend">Lighter = source only · medium = existing only · brightest = overlap</p>
         </details>
