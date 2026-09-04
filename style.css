@@ -32,17 +32,18 @@ body {
 .container {
 	width: 100%;
 	max-width: 900px;
-	background: var(--surface);
-	padding: 20px;
+	/* background: var(--surface); */
+	padding-block: 20px;
 	border-radius: 12px;
-	box-shadow: 0 4px 6px rgba(0, 0, 0, 0.18);
-	border: 1px solid var(--border);
+	/* box-shadow: 0 4px 6px rgba(0, 0, 0, 0.18); */
+	/* border: 1px solid var(--border); */
 }
 
 h1 {
 	margin-top: 0;
 	text-align: center;
 	color: var(--primary);
+	font-size: clamp(1.5rem, 6vw, 2rem);
 }
 h3 {
 	border-bottom: 1px solid var(--border);
@@ -147,6 +148,8 @@ h3 {
 /* Mode Selection */
 .mode-selector {
 	display: flex;
+	width: 100%;
+	max-width: 900px;
 	flex-direction: column;
 	gap: 12px;
 	align-items: center;
@@ -156,12 +159,17 @@ h3 {
 }
 
 .mode-switch {
-	display: flex;
-	justify-content: center;
-	flex-wrap: wrap;
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	width: 100%;
 	gap: .5rem;
-	align-items: center;
 }
+@media (width < 40rem) { 
+	.mode-switch {
+		grid-auto-flow: row;
+		grid-template-columns: 1fr;
+	}
+ }
 
 .mode-switch input[type="radio"] {
 	/* visually hide native radios but keep accessible */
@@ -172,7 +180,7 @@ h3 {
 }
 
 .mode-pill {
-	width: max-content;
+	width: 100%;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
