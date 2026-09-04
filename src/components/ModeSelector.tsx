@@ -1,103 +1,47 @@
-import { type Component } from 'solid-js';
-import { ArrowLeftRight, ArrowRight, DatabaseBackup, RotateCcwClock, Play, TimerReset } from 'lucide-solid';
+import { For, type Component } from 'solid-js';
 
 export type Mode = 'merge' | 'convert' | 'stt' | 'timejot';
 
 interface Props {
-	mode: () => Mode;
-	setMode: (mode: Mode) => void;
+  mode: () => Mode;
+  setMode: (mode: Mode) => void;
 }
 
-interface AppNodeProps { icon: any; name: string; }
-const AppNode: Component<AppNodeProps> = props => (
-	<span class="app-node">
-		<span class="app-icon">{props.icon}</span>
-		<span>{props.name}</span>
-	</span>
-);
+interface ModeOption {
+  id: string;
+  value: Mode;
+  labelText: string;
+}
+
+const modeOptions: ModeOption[] = [
+  { id: 'mode-merge', value: 'merge', labelText: 'NewPipe ⇄ LibreTube: Merge' },
+  { id: 'mode-convert', value: 'convert', labelText: 'NewPipe ⇄ LibreTube: Convert' },
+  { id: 'mode-stt', value: 'stt', labelText: 'SimpleTimeTracker → uHabits' },
+  { id: 'mode-timejot', value: 'timejot', labelText: 'TimeJot → uHabits' },
+];
 
 export const ModeSelector: Component<Props> = (props) => {
-	const select = (mode: Mode) => props.setMode(mode);
-	const isVideo = () => props.mode() === 'merge' || props.mode() === 'convert';
-
-	return (
-		<section class="conversion-picker" aria-label="Supported conversions">
-			<div class="route-grid">
-					<button
-						class="route-card route-main"
-						classList={{ selected: isVideo() }}
-						type="button"
-						onClick={() => select(props.mode() === "convert" ? "convert" : "merge")}
-						aria-pressed={isVideo()}
-					>
-						<span class="route-status">Both</span>
-						<span class="route-apps">
-							<AppNode icon={<Play size={18} />} name="NewPipe" />
-							<span class="route-arrow">
-								<ArrowLeftRight size={20} />
-							</span>
-							<AppNode icon={<DatabaseBackup size={18} />} name="LibreTube" />
-						</span>
-					</button>
-					<span class="route-status-balancer">
-						<div
-							class="route-actions"
-							role="group"
-							aria-label="NewPipe and LibreTube operation"
-						>
-							<button
-								type="button"
-								classList={{ active: props.mode() === "merge" }}
-								onClick={() => select("merge")}
-							>
-								Merge histories
-							</button>
-							<button
-								type="button"
-								classList={{ active: props.mode() === "convert" }}
-								onClick={() => select("convert")}
-							>
-								Convert one backup
-							</button>
-						</div>
-					</span>
-
-				<button
-					class="route-card route-main"
-					classList={{ selected: props.mode() === "stt" }}
-					type="button"
-					onClick={() => select("stt")}
-					aria-pressed={props.mode() === "stt"}
-				>
-					<span class="route-status">First</span>
-					<span class="route-apps">
-						<AppNode icon={<TimerReset size={18} />} name="Simple Time Tracker" />
-						<span class="route-arrow">
-							<ArrowRight size={20} />
-						</span>
-						<AppNode icon={<RotateCcwClock size={18} />} name="Loop Habits" />
-					</span>
-					<span class="route-status-balancer">&nbsp;</span>
-				</button>
-
-				<button
-					class="route-card route-main"
-					classList={{ selected: props.mode() === "timejot" }}
-					type="button"
-					onClick={() => select("timejot")}
-					aria-pressed={props.mode() === "timejot"}
-				>
-					<span class="route-status">Second</span>
-					<span class="route-apps">
-						<AppNode icon={<TimerReset size={18} />} name="TimeJot" />
-						<span class="route-arrow">
-							<ArrowRight size={20} />
-						</span>
-						<AppNode icon={<RotateCcwClock size={18} />} name="Loop Habits" />
-					</span>
-					<span class="route-status-balancer">&nbsp;</span>
-				</button>
-			</div>
-		</section>
-	);
+  return (
+    <div class="mode-selector">
+      <div class="mode-switch" role="radiogroup" aria-label="Mode selector">
+        <For each={modeOptions}>
+          {(option) => (
+            <>
+              <input
+                type="radio"
+                id={option.id}
+                name="mode"
+                value={option.value}
+                checked={props.mode() === option.value}
+                onChange={() => props.setMode(option.value)}
+              />
+              <label for={option.id} class="mode-pill">
+                {option.labelText}
+              </label>
+            </>
+          )}
+        </For>
+      </div>
+    </div>
+  );
 };

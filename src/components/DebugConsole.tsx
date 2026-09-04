@@ -2,23 +2,21 @@ import { createEffect } from 'solid-js';
 import { logStore } from '../logger';
 
 export function DebugConsole() {
-	let consoleRef: HTMLDivElement | undefined;
+  let consoleRef: HTMLDivElement | undefined;
 
-	createEffect(() => {
-		// Access the signal to trigger reactivity
-		logStore.logs();
+  createEffect(() => {
+    // Access the signal to trigger reactivity
+    logStore.logs();
+    
+    if (consoleRef) {
+      consoleRef.scrollTop = consoleRef.scrollHeight;
+    }
+  });
 
-		if (consoleRef) {
-			consoleRef.scrollTop = consoleRef.scrollHeight;
-		}
-	});
-
-	return (
-		<section class="debug-panel" aria-labelledby="activity-title">
-			<div class="debug-heading">
-				<div><span class="status-dot" aria-hidden="true" /><h2 id="activity-title">SQL.js log</h2></div>
-			</div>
-			<div id="debug-console" ref={consoleRef} innerHTML={logStore.logs()} />
-		</section>
-	);
+  return (
+    <>
+      <h3>Debug Log</h3>
+      <div id="debug-console" ref={consoleRef} innerHTML={logStore.logs()} />
+    </>
+  );
 }

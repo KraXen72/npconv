@@ -7,3 +7,4 @@ dist/
 /fixtures/after-newpipe_converted*.zip
 /_artifacts
 repomix-output.xml
+*:Zone.Identifier
