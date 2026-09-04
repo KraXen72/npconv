@@ -6,7 +6,7 @@ import { log } from '../../logger';
 import { importMappedDays } from '../shared/mappedUHabitsImport';
 
 /**
- * Convert Simple Time Tracker records to uHabits boolean habit entries
+ * Convert Simple Time Tracker records to uHabits habit entries.
  */
 export async function convertSttToUHabits(
 	sttFile: File,
@@ -21,26 +21,29 @@ export async function convertSttToUHabits(
 
 	const uhabits = await parseUHabitsBackup(uhabitsFile, SQL);
 	const { db } = uhabits;
-	const inserted = importMappedDays(db, uhabits, mappings, mapping => {
-		const sttType = sttData.recordTypes.get(mapping.sourceId);
-		if (!sttType) return null;
-		const records = getRecordsForType(
-			filterRecordsByDuration(sttData.records, mapping.minDuration ?? 0),
-			mapping.sourceId
-		);
-		return {
-			label: `${sttType.emoji} ${sttType.name}`.trim(),
-			days: [...groupRecordsByDay(records)].map(([dayKey, dayRecords]) => ({
-				dayKey,
-				notes: dayRecords.map(record => record.comment ?? '').filter(Boolean)
-			}))
-		};
-	});
 
-	log(`Conversion complete: ${inserted} new repetitions added`, 'info');
+	try {
+		const inserted = importMappedDays(db, uhabits, mappings, mapping => {
+			const sttType = sttData.recordTypes.get(mapping.sourceId);
+			if (!sttType) return null;
+			const records = getRecordsForType(
+				filterRecordsByDuration(sttData.records, mapping.minDuration ?? 0),
+				mapping.sourceId
+			);
+			return {
+				label: `${sttType.emoji} ${sttType.name}`.trim(),
+				days: [...groupRecordsByDay(records)].map(([dayKey, dayRecords]) => ({
+					dayKey,
+					notes: dayRecords.map(record => record.comment ?? '').filter(Boolean)
+				}))
+			};
+		});
 
-	const dbData = exportUHabitsBackup(db);
-	db.close();
+		log(`Conversion complete: ${inserted} new repetitions added`, 'info');
 
-	return new Blob([dbData as any], { type: 'application/x-sqlite3' });
+		const dbData = exportUHabitsBackup(db);
+		return new Blob([dbData as any], { type: 'application/x-sqlite3' });
+	} finally {
+		db.close();
+	}
 }

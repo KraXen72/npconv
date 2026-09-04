@@ -8,6 +8,7 @@ import { downloadFile, extractVideoIdFromUrl, getTimestamp } from '../../utils';
 import { parseJsonWithSchema } from '../../schemas/sql';
 import { LibreTubeBackupSchema } from '../../schemas/libretube';
 import {
+	clearPlaylists,
 	clearTableIfExists,
 	deletePlaylist,
 	deleteRemotePlaylist,
@@ -215,9 +216,7 @@ export async function exportToNewPipe(npFile: File | undefined, ltFile: File, mo
 		// 'merge_np_precedence', 'merge_lt_precedence', 'only_newpipe', 'only_libretube'
 		if (mode === 'merge') {
 			if (pb === 'only_libretube') {
-				db.run("DELETE FROM playlist_stream_join");
-				db.run("DELETE FROM playlists");
-				db.run("DELETE FROM remote_playlists");
+				clearPlaylists(db);
 				log("Cleared existing playlists; will import only LibreTube playlists.");
 			} else if (pb === 'only_newpipe') {
 				// preserve existing NewPipe playlists and don't import any from LibreTube

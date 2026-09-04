@@ -9,6 +9,7 @@ interface Props {
   onConvert: () => void;
   onMappingsChange: (mappings: ConversionMapping[]) => void;
   sourceKind: HabitSourceKind;
+  resetToken: number;
 }
 
 interface MappingRef {
@@ -61,6 +62,20 @@ export const SttControls: Component<Props> = (props) => {
     setValidMappingCount(result.length);
     props.onMappingsChange(result);
   };
+
+
+  let lastResetToken = props.resetToken;
+  createEffect(() => {
+    const resetToken = props.resetToken;
+    if (resetToken === lastResetToken) return;
+
+    lastResetToken = resetToken;
+    mappingRefs.clear();
+    setMappings([]);
+    setValidMappingCount(0);
+    props.onMappingsChange([]);
+    queueMicrotask(addMapping);
+  });
 
   // Emit mappings whenever they might have changed
   createEffect(() => {

@@ -51,7 +51,7 @@ export function importMappedDays(
 			uniqueDays.set(day.dayKey, notes);
 		}
 
-		let added = 0;
+		let newlyQueued = 0;
 		let overlap = 0;
 		for (const [dayKey, notes] of uniqueDays) {
 			const key = `${target.id}:${dayKey}`;
@@ -66,6 +66,7 @@ export function importMappedDays(
 				if (target.type === 1) queued.value += value;
 				notes.forEach(note => queued.notes.add(note));
 			} else {
+				newlyQueued++;
 				pending.set(key, {
 					habitId: target.id,
 					timestamp: dayKeyToTimestamp(dayKey),
@@ -73,10 +74,9 @@ export function importMappedDays(
 					notes
 				});
 			}
-			added++;
 		}
 
-		log(`"${source.label}" → "${target.name}": ${added} source days queued${overlap ? `, ${overlap} overlap skipped` : ''}`, 'info');
+		log(`"${source.label}" → "${target.name}": ${uniqueDays.size} source days, ${newlyQueued} new habit days queued${overlap ? `, ${overlap} existing overlaps skipped` : ''}`, 'info');
 	}
 
 	const rows = [...pending.values()].sort((a, b) => a.timestamp - b.timestamp || a.habitId - b.habitId);

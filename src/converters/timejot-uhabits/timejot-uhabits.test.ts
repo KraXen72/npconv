@@ -48,7 +48,8 @@ function makeTimeJot(): Uint8Array {
 	db.run(`INSERT INTO entries VALUES
 		(1, 'existing overlap', 6, '2025-06-07T10:05:00+02:00', 0),
 		(2, NULL, 7, '2025-07-27T03:00:00+02:00', 0),
-		(3, NULL, 2, '2025-08-01T20:54:00+02:00', 0)`);
+		(3, NULL, 2, '2025-08-01T20:54:00+02:00', 0),
+		(4, 'still running', 2, '2025-08-02T20:54:00+02:00', 1)`);
 	const bytes = db.export();
 	db.close();
 	return bytes;

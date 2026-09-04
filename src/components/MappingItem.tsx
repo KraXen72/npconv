@@ -165,12 +165,24 @@ export const MappingItem: Component<Props> = (props) => {
     const target = Number(uhabitsHabitId());
     if (sourceId() === '' || uhabitsHabitId() === '' || !Number.isInteger(source) || !Number.isInteger(target)) return null;
 
+    const sourceExists = props.sourceKind === 'timejot'
+      ? props.timeJotData?.events.has(source)
+      : props.sttData?.recordTypes.has(source);
+    const targetHabit = props.uhabitsData?.allHabits.get(target);
+    if (!sourceExists || !targetHabit || (targetHabit.type !== 0 && targetHabit.type !== 1)) return null;
+
+    const minimumDuration = minDuration();
+    if (props.sourceKind === 'stt' && (!Number.isFinite(minimumDuration) || minimumDuration < 0)) return null;
+
+    const value = numericValue();
+    if (targetHabit.type === 1 && (!Number.isFinite(value) || value <= 0)) return null;
+
     return {
       sourceId: source,
       uhabitsHabitId: target,
-      minDuration: props.sourceKind === 'stt' ? minDuration() : 0,
+      minDuration: props.sourceKind === 'stt' ? minimumDuration : 0,
       copySourceNotes: copySourceNotes(),
-      numericValue: selectedHabit()?.type === 1 ? numericValue() : undefined
+      numericValue: targetHabit.type === 1 ? value : undefined
     };
   };
 

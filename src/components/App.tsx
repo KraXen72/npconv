@@ -26,6 +26,7 @@ export const App: Component<Props> = (props) => {
   const [includeWatchHistory, setIncludeWatchHistory] = createSignal(true);
   const [processing, setProcessing] = createSignal(false);
   const [habitMappings, setHabitMappings] = createSignal<ConversionMapping[]>([]);
+  const [mappingResetToken, setMappingResetToken] = createSignal(0);
 
   // Create STT store
   const sttStore = createSttStore(props.SQL);
@@ -48,6 +49,7 @@ export const App: Component<Props> = (props) => {
       sttStore.clearSources();
       sttStore.clearUHabits();
       setHabitMappings([]);
+      setMappingResetToken(token => token + 1);
     }
     prevModeType = newModeType;
     setMode(newMode);
@@ -101,6 +103,10 @@ export const App: Component<Props> = (props) => {
 
   const handleLeftFileChange = async (file: File | null) => {
     setLeftFile(file);
+    if (mode() === 'stt' || mode() === 'timejot') {
+      setHabitMappings([]);
+      setMappingResetToken(token => token + 1);
+    }
 
     if (!file && (mode() === 'stt' || mode() === 'timejot')) {
       sttStore.clearSources();
@@ -110,21 +116,25 @@ export const App: Component<Props> = (props) => {
     if (mode() === 'stt' && file) {
       try {
         const loaded = await sttStore.loadSttFile(file);
-        if (!loaded) setLeftFile(null);
+        if (!loaded && leftFile() === file && mode() === 'stt') setLeftFile(null);
       } catch (error: unknown) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         console.error('Failed to load STT file:', errorMsg);
         log(`Failed to load STT file: ${errorMsg}`, 'err');
-        setLeftFile(null);
+        if (leftFile() === file && mode() === 'stt') setLeftFile(null);
       }
     } else if (mode() === 'timejot' && file) {
       const loaded = await sttStore.loadTimeJotFile(file);
-      if (!loaded) setLeftFile(null);
+      if (!loaded && leftFile() === file && mode() === 'timejot') setLeftFile(null);
     }
   };
 
   const handleRightFileChange = async (file: File | null) => {
     setRightFile(file);
+    if (mode() === 'stt' || mode() === 'timejot') {
+      setHabitMappings([]);
+      setMappingResetToken(token => token + 1);
+    }
 
     if (!file && (mode() === 'stt' || mode() === 'timejot')) {
       sttStore.clearUHabits();
@@ -134,12 +144,12 @@ export const App: Component<Props> = (props) => {
     if ((mode() === 'stt' || mode() === 'timejot') && file) {
       try {
         const loaded = await sttStore.loadUHabitsFile(file);
-        if (!loaded) setRightFile(null);
+        if (!loaded && rightFile() === file && (mode() === 'stt' || mode() === 'timejot')) setRightFile(null);
       } catch (error: unknown) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         console.error('Failed to load uHabits file:', errorMsg);
         log(`Failed to load uHabits file: ${errorMsg}`, 'err');
-        setRightFile(null);
+        if (rightFile() === file && (mode() === 'stt' || mode() === 'timejot')) setRightFile(null);
       }
     }
   };
@@ -177,7 +187,8 @@ export const App: Component<Props> = (props) => {
   };
 
   const handleHabitConvert = async () => {
-    const sourceFile = mode() === 'timejot' ? sttStore.timeJotFile() : sttStore.sttFile();
+    const conversionMode = mode();
+    const sourceFile = conversionMode === 'timejot' ? sttStore.timeJotFile() : sttStore.sttFile();
     const uhabitsFile = sttStore.uhabitsFile();
 
     if (!sourceFile || !uhabitsFile) {
@@ -196,11 +207,11 @@ export const App: Component<Props> = (props) => {
       setProcessing(true);
       log('Starting conversion...', 'info');
 
-      const blob = mode() === 'timejot'
+      const blob = conversionMode === 'timejot'
         ? await convertTimeJotToUHabits(sourceFile, uhabitsFile, mappings, props.SQL)
         : await convertSttToUHabits(sourceFile, uhabitsFile, mappings, props.SQL);
 
-      downloadFile(blob, `uhabits_with_${mode()}.backup`, null);
+      downloadFile(blob, `uhabits_with_${conversionMode}.backup`, null);
       log('Conversion complete! Download started.', 'info');
     } catch (error: any) {
       log(`Conversion failed: ${error.message}`, 'err');
@@ -229,6 +240,7 @@ export const App: Component<Props> = (props) => {
           disabled={processing()} 
           sttStore={sttStore}
           sourceKind={mode() === 'timejot' ? 'timejot' : 'stt'}
+          resetToken={mappingResetToken()}
           onConvert={handleHabitConvert}
           onMappingsChange={setHabitMappings}
         />
