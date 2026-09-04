@@ -118,7 +118,7 @@ export const SttControls: Component<Props> = (props) => {
           disabled={props.disabled || !canConvert()}
           onClick={props.onConvert}
         >
-          {props.disabled ? 'Building backup…' : 'Create filled backup'}
+          {props.disabled ? 'Building backup...' : 'Create filled backup'}
         </button>
       </div>
     </section>

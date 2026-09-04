@@ -124,14 +124,14 @@ export const MappingItem: Component<Props> = (props) => {
       <div class="mapping-selects">
         <label><span>{props.sourceKind === 'timejot' ? 'TimeJot event' : 'STT activity'}</span>
           <select value={sourceId()} onChange={(event: any) => setSourceId(event.currentTarget.value)}>
-            <option value="">Choose source…</option>
+            <option value="">Choose source...</option>
             <For each={sourceOptions()}>{option => <option value={option.id}>{option.label}{option.archived ? ' · archived' : ''}</option>}</For>
           </select>
         </label>
         <span class="mapping-arrow" aria-hidden="true"><ArrowRight size={19} /></span>
         <label><span>Loop Habit target</span>
           <select value={habitId()} onChange={(event: any) => setHabitId(event.currentTarget.value)}>
-            <option value="">Choose habit…</option>
+            <option value="">Choose habit...</option>
             <For each={habitOptions().active}>{habit => <option value={habit.id}>{habitLabel(habit)}</option>}</For>
             <Show when={habitOptions().archived.length}><optgroup label="Archived"><For each={habitOptions().archived}>{habit => <option value={habit.id}>{habitLabel(habit)}</option>}</For></optgroup></Show>
           </select>

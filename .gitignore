@@ -5,3 +5,4 @@ node_modules/
 dist/
 /fixtures/before-newpipe_converted*.zip
 /fixtures/after-newpipe_converted*.zip
+/_artifacts
