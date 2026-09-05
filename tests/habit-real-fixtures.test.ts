@@ -1,5 +1,4 @@
 import { readFile } from 'node:fs/promises';
-import { gunzipSync } from 'node:zlib';
 import initSqlJs, { type SqlJsStatic } from 'sql.js';
 import { beforeAll, describe, expect, test } from 'vitest';
 import { parseSttBackup } from '../src/converters/stt-uhabits/sttParser';
@@ -10,7 +9,7 @@ import { convertTimeJotToUHabits } from '../src/converters/timejot-uhabits/toUHa
 
 let SQL: SqlJsStatic;
 
-const fixtureUrl = (name: string) => new URL(`../fixtures/habit-backfill/${name}.gz.b64`, import.meta.url);
+const fixtureUrl = (name: string) => new URL(`../fixtures/habit-backfill/${name}`, import.meta.url);
 
 const fileFromBytes = (bytes: Uint8Array, name: string) => ({
 	name,
@@ -23,8 +22,14 @@ const fileFromText = (text: string, name: string) => ({
 }) as File;
 
 const loadBytes = async (name: string) => {
-	const encoded = await readFile(fixtureUrl(name), 'utf8');
-	return new Uint8Array(gunzipSync(Buffer.from(encoded.trim(), 'base64')));
+	try {
+		return new Uint8Array(await readFile(fixtureUrl(name)));
+	} catch (error) {
+		throw new Error(
+			`Missing real regression fixture: fixtures/habit-backfill/${name}. Add the anonymized fixture file before running the test suite.`,
+			{ cause: error }
+		);
+	}
 };
 const loadText = async (name: string) => new TextDecoder().decode(await loadBytes(name));
 
@@ -98,8 +103,6 @@ describe('real anonymized habit-backfill fixtures', () => {
 				Date.UTC(2024, 5, 20),
 				Date.UTC(2024, 8, 10)
 			];
-			// Two additional imported days (April 12 and April 22) fall before the
-			// final pre-existing repetition and are checked separately below.
 			expect(newRows.filter(row => Number(row[1]) === 1250).map(row => Number(row[0]))).toEqual(expectedNewRows);
 
 			for (const timestamp of [Date.UTC(2024, 3, 12), Date.UTC(2024, 3, 22)]) {
