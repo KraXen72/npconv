@@ -31,7 +31,6 @@ export const FileZone: Component<Props> = (props) => {
     if (prevModeType !== currentModeType) {
       if (fileInputRef) fileInputRef.value = '';
       setFileName('');
-      props.onFileChange(null);
     }
     
     prevModeType = currentModeType;
