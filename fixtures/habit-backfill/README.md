@@ -1,13 +1,18 @@
 # Habit backfill regression fixtures
 
-These fixtures are anonymized copies of real application exports used to catch
+These tests use anonymized copies of real application exports so they catch
 schema and format differences that hand-built test databases can miss.
 
-Each file is stored as gzip-compressed, base64-encoded text (`.gz.b64`). Tests
-decode and decompress it back to the exact anonymized export bytes before
-parsing/conversion.
+The following files must exist in this directory:
+
+- `fixture-stt-anonymized.backup`
+- `fixture-uhabits-anonymized.db`
+- `fixture-timejot-anonymized.db`
+
+The test suite intentionally fails with a clear missing-fixture error if any of
+them are absent.
 
 Anonymization preserves IDs, timestamps, relationships, flags, numeric values,
 row counts, database schemas, and backup structure. User-authored names,
 descriptions, questions, notes/comments, units, icons, and Loop UUIDs were
-replaced deterministically before the fixtures were added to the repository.
+replaced deterministically.
