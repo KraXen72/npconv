@@ -5,6 +5,11 @@ import { habits, repetitions } from '../db/uhabitsTables';
 import { IntegerSchema } from './sql';
 
 const integerColumn = () => IntegerSchema;
+const nullableIntegerColumn = () => v.nullable(IntegerSchema);
+
+// A disabled Loop reminder is represented by NULL. The converter does not use
+// reminder metadata, so normalize it to zero for a predictable parsed shape.
+const reminderInteger = () => v.nullish(IntegerSchema, 0);
 
 export type UHabitsHabitDb = typeof habits.$inferSelect;
 export type UHabitsRepetitionDb = typeof repetitions.$inferSelect;
@@ -32,9 +37,9 @@ export const UHabitsHabitDbSchema = createSelectSchema(habits, {
 	freqNum: integerColumn,
 	highlight: integerColumn,
 	position: integerColumn,
-	reminderHour: integerColumn,
-	reminderMin: integerColumn,
-	reminderDays: integerColumn,
+	reminderHour: nullableIntegerColumn,
+	reminderMin: nullableIntegerColumn,
+	reminderDays: nullableIntegerColumn,
 	type: integerColumn,
 	targetType: integerColumn
 });
@@ -50,9 +55,9 @@ export const UHabitsHabitSchema: v.GenericSchema<unknown, UHabitsHabit> = v.obje
 	freq_den: IntegerSchema,
 	position: IntegerSchema,
 	highlight: IntegerSchema,
-	reminder_hour: IntegerSchema,
-	reminder_min: IntegerSchema,
-	reminder_days: IntegerSchema,
+	reminder_hour: reminderInteger(),
+	reminder_min: reminderInteger(),
+	reminder_days: reminderInteger(),
 	target_type: IntegerSchema,
 	target_value: v.number(),
 	unit: v.string(),

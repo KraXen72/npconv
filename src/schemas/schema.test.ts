@@ -6,6 +6,7 @@ import { LibreTubeBackupSchema } from './libretube';
 import { createSchema } from '../sqlHelper';
 import { getNewPipeDb, subscriptions } from '../db/newpipeTables';
 import { getUHabitsDb, habits, repetitions } from '../db/uhabitsTables';
+import { selectHabits } from '../db/uhabitsRepo';
 import { NewPipeStateRowSchema, NewPipeStreamInsertSchema, NewPipeSubscriptionDbSchema } from './newpipe';
 import { UHabitsHabitDbSchema, UHabitsRepetitionDbSchema, UHabitsRepetitionInsertSchema } from './uhabits';
 
@@ -68,9 +69,9 @@ describe('shared schemas', () => {
 					highlight INTEGER NOT NULL,
 					name TEXT NOT NULL,
 					position INTEGER NOT NULL,
-					reminder_hour INTEGER NOT NULL,
-					reminder_min INTEGER NOT NULL,
-					reminder_days INTEGER NOT NULL,
+					reminder_hour INTEGER,
+					reminder_min INTEGER,
+					reminder_days INTEGER,
 					type INTEGER NOT NULL,
 					target_type INTEGER NOT NULL,
 					target_value REAL NOT NULL,
@@ -100,9 +101,9 @@ describe('shared schemas', () => {
 				highlight: 0,
 				name: 'Read',
 				position: 0,
-				reminderHour: 8,
-				reminderMin: 0,
-				reminderDays: 0,
+				reminderHour: null,
+				reminderMin: null,
+				reminderDays: null,
 				type: 0,
 				targetType: 0,
 				targetValue: 1,
@@ -119,6 +120,10 @@ describe('shared schemas', () => {
 
 			expect(v.safeParse(UHabitsHabitDbSchema, uhabitsOrm.select().from(habits).get()).success).toBe(true);
 			expect(v.safeParse(UHabitsRepetitionDbSchema, uhabitsOrm.select().from(repetitions).get()).success).toBe(true);
+			const parsedHabit = selectHabits(db)[0];
+			expect(parsedHabit.reminder_hour).toBe(0);
+			expect(parsedHabit.reminder_min).toBe(0);
+			expect(parsedHabit.reminder_days).toBe(0);
 		} finally {
 			db.close();
 		}

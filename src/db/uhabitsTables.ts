@@ -12,9 +12,10 @@ export const habits = sqliteTable('Habits', {
 	highlight: integer('highlight').notNull(),
 	name: text('name').notNull(),
 	position: integer('position').notNull(),
-	reminderHour: integer('reminder_hour').notNull(),
-	reminderMin: integer('reminder_min').notNull(),
-	reminderDays: integer('reminder_days').notNull(),
+	// Loop stores NULL in these columns when a habit has no reminder.
+	reminderHour: integer('reminder_hour'),
+	reminderMin: integer('reminder_min'),
+	reminderDays: integer('reminder_days'),
 	type: integer('type').notNull(),
 	targetType: integer('target_type').notNull(),
 	targetValue: real('target_value').notNull(),
