@@ -211,7 +211,7 @@ export const App: Component<Props> = (props) => {
         ? await convertTimeJotToUHabits(sourceFile, uhabitsFile, mappings, props.SQL)
         : await convertSttToUHabits(sourceFile, uhabitsFile, mappings, props.SQL);
 
-      downloadFile(blob, `uhabits_with_${conversionMode}.backup`, null);
+      downloadFile(blob, `uhabits_with_${conversionMode}.db`, null);
       log('Conversion complete! Download started.', 'info');
     } catch (error: any) {
       log(`Conversion failed: ${error.message}`, 'err');

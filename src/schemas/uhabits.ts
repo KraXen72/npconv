@@ -99,6 +99,8 @@ export const ConversionMappingSchema = v.object({
 	uhabitsHabitId: IntegerSchema,
 	minDuration: v.optional(v.number()),
 	copySourceNotes: v.optional(v.boolean()),
+	invertTimeJot: v.optional(v.boolean()),
+	timeJotRolloverHours: v.optional(v.number()),
 	numericValue: v.optional(v.number())
 });
 export type ConversionMapping = v.InferOutput<typeof ConversionMappingSchema>;

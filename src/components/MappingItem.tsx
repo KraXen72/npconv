@@ -1,8 +1,9 @@
-import { createSignal, createEffect, createMemo, onMount, onCleanup, type Component, type JSX, Show, For } from 'solid-js';
+import { createSignal, createEffect, createMemo, onMount, onCleanup, untrack, type Component, type JSX, Show, For } from 'solid-js';
 import type { ParsedSttBackup } from '../schemas/stt';
 import type { ParsedTimeJotBackup } from '../schemas/timejot';
 import type { ConversionMapping, ParsedUHabitsBackup, UHabitsHabit } from '../schemas/uhabits';
 import { timestampToDayKey } from '../converters/stt-uhabits/uhabitsHelper';
+import { invertTimeJotDays, timeJotDayKey } from '../converters/timejot-uhabits/timejotParser';
 
 declare module "solid-js" {
   namespace JSX {
@@ -33,6 +34,8 @@ const GRAPH_DIM_COLORS: Record<GraphCategory, string> = {
   overlap: '#4b3f56'
 };
 
+const GRAPH_BASE_COLORS = ['#161b22', '#2a2a33', '#34313d', '#3c3845', '#45404f'];
+
 function categoryForCount(count: number): GraphCategory | null {
   if (count === 1) return 'source';
   if (count === 2) return 'existing';
@@ -41,25 +44,25 @@ function categoryForCount(count: number): GraphCategory | null {
 }
 
 /**
- * Build the five-color palette expected by activity-grid while keeping the
- * source categories distinct even when one category is absent from the data.
+ * Apply semantic category colors after activity-grid renders its cells.
+ *
+ * activity-grid calculates each cell's level against the largest count in the
+ * current data set. That makes a source-only or existing-only cell change
+ * shade when rollover changes the maximum count. The package exposes the
+ * count on each cell but not a per-cell color callback, so the final semantic
+ * colors are applied to its open shadow DOM instead.
  */
-function getGraphColors(data: GridDataPoint[], focused: GraphCategory | null): string[] {
-  const colors = ['#161b22', '#2a2a33', '#34313d', '#34313d', '#34313d'];
-  const maxCount = Math.max(...data.map(day => day.count), 0);
-  if (maxCount === 0) return colors;
+function applyGraphCellColors(grid: any, focused: GraphCategory | null): void {
+  const shadowRoot = grid?.shadowRoot as ShadowRoot | undefined;
+  if (!shadowRoot) return;
 
-  for (const day of data) {
-    const category = categoryForCount(day.count);
-    if (!category) continue;
-
-    const level = Math.ceil(day.count / maxCount * (colors.length - 1));
-    colors[level] = focused && focused !== category
+  shadowRoot.querySelectorAll<HTMLElement>('.cell[data-count]').forEach(cell => {
+    const category = categoryForCount(Number(cell.getAttribute('data-count')));
+    if (!category) return;
+    cell.style.backgroundColor = focused && focused !== category
       ? GRAPH_DIM_COLORS[category]
       : GRAPH_COLORS[category];
-  }
-
-  return colors;
+  });
 }
 
 interface Props {
@@ -78,6 +81,8 @@ export const MappingItem: Component<Props> = (props) => {
   const [uhabitsHabitId, setUhabitsHabitId] = createSignal('');
   const [minDuration, setMinDuration] = createSignal(5);
   const [copySourceNotes, setCopySourceNotes] = createSignal(false);
+  const [invertTimeJot, setInvertTimeJot] = createSignal(false);
+  const [timeJotRolloverHours, setTimeJotRolloverHours] = createSignal(0);
   const [numericValue, setNumericValue] = createSignal(1);
   const [currentYear, setCurrentYear] = createSignal(new Date().getFullYear());
   const [showGrid, setShowGrid] = createSignal(false);
@@ -140,16 +145,31 @@ export const MappingItem: Component<Props> = (props) => {
     return props.uhabitsData?.allHabits.get(id) ?? null;
   });
 
+  const targetDays = createMemo(() => {
+    const targetId = Number(uhabitsHabitId());
+    if (uhabitsHabitId() === '' || !Number.isInteger(targetId)) return new Set<string>();
+
+    return new Set(
+      props.uhabitsData?.repetitions
+        .filter(repetition => repetition.habit_id === targetId)
+        .map(repetition => timestampToDayKey(repetition.timestamp)) ?? []
+    );
+  });
+
   const sourceDays = createMemo(() => {
     const selected = Number(sourceId());
     if (sourceId() === '' || !Number.isInteger(selected)) return new Set<string>();
 
     if (props.sourceKind === 'timejot') {
-      return new Set(
+      const recordedDays = new Set(
         props.timeJotData?.entries
           .filter(entry => entry.eventId === selected)
-          .map(entry => entry.dayKey) ?? []
+          .map(entry => timeJotDayKey(entry.date, timeJotRolloverHours())) ?? []
       );
+
+      return invertTimeJot() && selectedHabit()?.type === 0
+        ? invertTimeJotDays(recordedDays, targetDays())
+        : recordedDays;
     }
 
     const minimumMs = minDuration() * 60 * 1000;
@@ -161,7 +181,6 @@ export const MappingItem: Component<Props> = (props) => {
   });
 
   const updateGrid = () => {
-    const targetId = Number(uhabitsHabitId());
     if (sourceId() === '' || uhabitsHabitId() === '' || !props.uhabitsData) {
       setShowGrid(false);
       return;
@@ -170,11 +189,7 @@ export const MappingItem: Component<Props> = (props) => {
     setShowGrid(true);
 
     const incoming = sourceDays();
-    const existing = new Set(
-      props.uhabitsData.repetitions
-        .filter(rep => rep.habit_id === targetId)
-        .map(rep => timestampToDayKey(rep.timestamp))
-    );
+    const existing = targetDays();
 
     const allDates = new Set([...incoming, ...existing]);
     const data = [...allDates].sort().map(date => ({
@@ -194,10 +209,17 @@ export const MappingItem: Component<Props> = (props) => {
     sourceId();
     uhabitsHabitId();
     minDuration();
+    invertTimeJot();
+    timeJotRolloverHours();
     props.sttData;
     props.timeJotData;
     props.uhabitsData;
     updateGrid();
+  });
+
+  createEffect(() => {
+    const supportsInversion = props.sourceKind === 'timejot' && selectedHabit()?.type === 0;
+    if (!supportsInversion && invertTimeJot()) setInvertTimeJot(false);
   });
 
   createEffect(() => {
@@ -209,6 +231,7 @@ export const MappingItem: Component<Props> = (props) => {
       gridRef.data = allData;
       gridRef.endDate = `${displayYear}-12-31`;
       gridRef.startDate = `${displayYear}-01-01`;
+      applyGraphCellColors(gridRef, untrack(activeCategory));
     }
   });
 
@@ -217,7 +240,7 @@ export const MappingItem: Component<Props> = (props) => {
     const focused = activeCategory();
 
     if (gridRef && isVisible) {
-      gridRef.colors = getGraphColors(gridData(), focused);
+      applyGraphCellColors(gridRef, focused);
     }
   });
 
@@ -226,6 +249,8 @@ export const MappingItem: Component<Props> = (props) => {
     uhabitsHabitId();
     minDuration();
     copySourceNotes();
+    invertTimeJot();
+    timeJotRolloverHours();
     numericValue();
     queueMicrotask(props.onChange);
   });
@@ -267,6 +292,8 @@ export const MappingItem: Component<Props> = (props) => {
       uhabitsHabitId: target,
       minDuration: props.sourceKind === 'stt' ? minimumDuration : 0,
       copySourceNotes: copySourceNotes(),
+      invertTimeJot: props.sourceKind === 'timejot' && targetHabit.type === 0 ? invertTimeJot() : undefined,
+      timeJotRolloverHours: props.sourceKind === 'timejot' ? timeJotRolloverHours() : undefined,
       numericValue: targetHabit.type === 1 ? value : undefined
     };
   };
@@ -288,19 +315,8 @@ export const MappingItem: Component<Props> = (props) => {
   const attachGridClickListener = (grid: any) => {
     removeGridClickListener?.();
 
-    const shadowRoot = grid?.shadowRoot as ShadowRoot | undefined;
-    if (!shadowRoot) return;
-
-    // activity-grid renders cells in an open shadow root but has no click API.
-    // Delegating here keeps the integration local without changing the package.
-    const getCellCategory = (target: EventTarget | null): GraphCategory | null => {
-      if (!(target instanceof Element)) return null;
-      const cell = target.closest('.cell');
-      return categoryForCount(Number(cell?.getAttribute('data-count')));
-    };
-
     const handleGridClick = (event: Event) => {
-      const category = getCellCategory(event.target);
+      const category = categoryForCount(Number((event as CustomEvent<{ count: number }>).detail?.count));
       if (!category) return;
 
       event.stopPropagation();
@@ -308,10 +324,10 @@ export const MappingItem: Component<Props> = (props) => {
       setLockedCategory(category);
     };
 
-    shadowRoot.addEventListener('click', handleGridClick);
+    grid.addEventListener('cell-click', handleGridClick);
 
     removeGridClickListener = () => {
-      shadowRoot.removeEventListener('click', handleGridClick);
+      grid.removeEventListener('cell-click', handleGridClick);
       removeGridClickListener = undefined;
     };
   };
@@ -426,6 +442,35 @@ export const MappingItem: Component<Props> = (props) => {
           />
           <span class="option-label">Copy {props.sourceKind === 'timejot' ? 'notes' : 'comments'}</span>
         </label>
+
+        <Show when={props.sourceKind === 'timejot' && selectedHabit()}>
+          <label class="option-item" title="Count TimeJot entries during the first hours after midnight toward the previous calendar day">
+            <span class="option-label">After-midnight buffer:</span>
+            <input
+              type="number"
+              class="min-duration-input"
+              value={timeJotRolloverHours()}
+              min="0"
+              max="12"
+              step="1"
+              title="Hours after midnight to count toward the previous day; 0 disables this"
+              onChange={(e) => setTimeJotRolloverHours(Math.max(0, Math.min(12, parseInt(e.currentTarget.value, 10) || 0)))}
+            />
+            <span class="option-unit">hours</span>
+          </label>
+        </Show>
+
+        <Show when={props.sourceKind === 'timejot' && selectedHabit()?.type === 0}>
+          <label class="option-item option-checkbox" title="Create repetitions in the largest uHabits tracking gap that contains this TimeJot event, excluding days with an entry">
+            <input
+              type="checkbox"
+              class="invert-timejot-checkbox"
+              checked={invertTimeJot()}
+              onChange={(e) => setInvertTimeJot(e.currentTarget.checked)}
+            />
+            <span class="option-label">Invert TimeJot entries (fill missing days)</span>
+          </label>
+        </Show>
       </div>
 
       <Show when={showGrid()}>
@@ -443,8 +488,9 @@ export const MappingItem: Component<Props> = (props) => {
             ref={(element: any) => {
               gridRef = element;
               if (element) {
-                element.colors = getGraphColors(gridData(), activeCategory());
+                element.colors = GRAPH_BASE_COLORS;
                 attachGridClickListener(element);
+                applyGraphCellColors(element, untrack(activeCategory));
               } else {
                 removeGridClickListener?.();
               }

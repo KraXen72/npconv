@@ -1,9 +1,9 @@
 import type { SqlJsStatic } from 'sql.js';
 import type { ConversionMapping } from '../../schemas/uhabits';
 import { log } from '../../logger';
-import { parseUHabitsBackup, exportUHabitsBackup } from '../stt-uhabits/uhabitsHelper';
+import { parseUHabitsBackup, timestampToDayKey, exportUHabitsBackup } from '../stt-uhabits/uhabitsHelper';
 import { importMappedDays } from '../shared/mappedUHabitsImport';
-import { parseTimeJotBackup } from './timejotParser';
+import { invertTimeJotDays, parseTimeJotBackup, timeJotDayKey } from './timejotParser';
 
 export async function convertTimeJotToUHabits(
 	timeJotFile: File,
@@ -19,12 +19,34 @@ export async function convertTimeJotToUHabits(
 	try {
 		const inserted = importMappedDays(db, uhabits, mappings, mapping => {
 			const event = timeJot.events.get(mapping.sourceId);
-			if (!event) return null;
+			const target = uhabits.allHabits.get(mapping.uhabitsHabitId);
+			if (!event || !target) return null;
+
+			const entries = timeJot.entries.filter(entry => entry.eventId === event.id);
+			const entriesByDay = new Map<string, string[]>();
+			for (const entry of entries) {
+				const dayKey = timeJotDayKey(entry.date, mapping.timeJotRolloverHours ?? 0);
+				const notes = entriesByDay.get(dayKey) ?? [];
+				if (entry.note) notes.push(entry.note);
+				entriesByDay.set(dayKey, notes);
+			}
+
+			const recordedDays = new Set(entriesByDay.keys());
+			const existingTargetDays = new Set(
+				uhabits.repetitions
+					.filter(repetition => repetition.habit_id === target.id)
+					.map(repetition => timestampToDayKey(repetition.timestamp))
+			);
+			const dayKeys = mapping.invertTimeJot && target.type === 0
+				? invertTimeJotDays(recordedDays, existingTargetDays)
+				: recordedDays;
+
 			return {
 				label: event.title,
-				days: timeJot.entries
-					.filter(entry => entry.eventId === event.id)
-					.map(entry => ({ dayKey: entry.dayKey, notes: entry.note ? [entry.note] : [] }))
+				days: [...dayKeys].map(dayKey => ({
+					dayKey,
+					notes: entriesByDay.get(dayKey) ?? []
+				}))
 			};
 		});
 
