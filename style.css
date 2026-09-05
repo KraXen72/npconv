@@ -620,6 +620,59 @@ button:active:not(:disabled) {
 	-webkit-overflow-scrolling: touch;
 }
 
+.activity-legend {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-wrap: wrap;
+	gap: 6px 14px;
+	margin-top: 12px;
+	padding-top: 10px;
+	border-top: 1px solid var(--border);
+}
+
+.activity-legend-title {
+	color: var(--text-muted);
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.activity-legend-item {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 6px;
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	color: var(--text-muted);
+	font-size: 12px;
+	font-weight: 400;
+	transition: opacity 0.18s, background-color 0.18s, border-color 0.18s, color 0.18s;
+}
+
+.activity-legend-item:hover:not(:disabled),
+.activity-legend-item:focus-visible,
+.activity-legend-item.is-focused {
+	transform: none;
+	box-shadow: none;
+	background: var(--button-bg);
+	border-color: var(--border-hover);
+	color: var(--text);
+}
+
+.activity-legend-item.is-dimmed {
+	opacity: 0.24;
+}
+
+.activity-legend-swatch {
+	display: inline-block;
+	width: 10px;
+	height: 10px;
+	border-radius: 2px;
+	flex: 0 0 auto;
+}
+
 .grid-year-nav {
 	display: flex;
 	align-items: center;

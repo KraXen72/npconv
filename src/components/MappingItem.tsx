@@ -14,6 +14,54 @@ declare module "solid-js" {
 
 export type HabitSourceKind = 'stt' | 'timejot';
 
+type GraphCategory = 'source' | 'existing' | 'overlap';
+
+interface GridDataPoint {
+  date: string;
+  count: number;
+}
+
+const GRAPH_COLORS: Record<GraphCategory, string> = {
+  source: '#00d1b2',
+  existing: '#9474CC',
+  overlap: '#e1c4ff'
+};
+
+const GRAPH_DIM_COLORS: Record<GraphCategory, string> = {
+  source: '#123b38',
+  existing: '#362b45',
+  overlap: '#4b3f56'
+};
+
+function categoryForCount(count: number): GraphCategory | null {
+  if (count === 1) return 'source';
+  if (count === 2) return 'existing';
+  if (count === 3) return 'overlap';
+  return null;
+}
+
+/**
+ * Build the five-color palette expected by activity-grid while keeping the
+ * source categories distinct even when one category is absent from the data.
+ */
+function getGraphColors(data: GridDataPoint[], focused: GraphCategory | null): string[] {
+  const colors = ['#161b22', '#2a2a33', '#34313d', '#34313d', '#34313d'];
+  const maxCount = Math.max(...data.map(day => day.count), 0);
+  if (maxCount === 0) return colors;
+
+  for (const day of data) {
+    const category = categoryForCount(day.count);
+    if (!category) continue;
+
+    const level = Math.ceil(day.count / maxCount * (colors.length - 1));
+    colors[level] = focused && focused !== category
+      ? GRAPH_DIM_COLORS[category]
+      : GRAPH_COLORS[category];
+  }
+
+  return colors;
+}
+
 interface Props {
   mappingId: number;
   sourceKind: HabitSourceKind;
@@ -34,7 +82,28 @@ export const MappingItem: Component<Props> = (props) => {
   const [currentYear, setCurrentYear] = createSignal(new Date().getFullYear());
   const [showGrid, setShowGrid] = createSignal(false);
   const [yearInitialized, setYearInitialized] = createSignal(false);
-  const [gridData, setGridData] = createSignal<any[]>([]);
+  const [gridData, setGridData] = createSignal<GridDataPoint[]>([]);
+  const [lockedCategory, setLockedCategory] = createSignal<GraphCategory | null>(null);
+  const [hoveredLegendCategory, setHoveredLegendCategory] = createSignal<GraphCategory | null>(null);
+  const activeCategory = createMemo(() => hoveredLegendCategory() ?? lockedCategory());
+
+  const legendItems: Array<{ category: GraphCategory; label: () => string; title: string }> = [
+    {
+      category: 'source',
+      label: () => `${props.sourceKind === 'timejot' ? 'TimeJot' : 'STT'} only`,
+      title: 'Highlight days from the source backup'
+    },
+    {
+      category: 'existing',
+      label: () => 'uHabits only',
+      title: 'Highlight days already in the uHabits backup'
+    },
+    {
+      category: 'overlap',
+      label: () => 'Both backups',
+      title: 'Highlight days present in both backups'
+    }
+  ];
 
   let gridRef: any;
 
@@ -144,6 +213,15 @@ export const MappingItem: Component<Props> = (props) => {
   });
 
   createEffect(() => {
+    const isVisible = showGrid();
+    const focused = activeCategory();
+
+    if (gridRef && isVisible) {
+      gridRef.colors = getGraphColors(gridData(), focused);
+    }
+  });
+
+  createEffect(() => {
     sourceId();
     uhabitsHabitId();
     minDuration();
@@ -152,11 +230,18 @@ export const MappingItem: Component<Props> = (props) => {
     queueMicrotask(props.onChange);
   });
 
+  const clearCategoryFocus = () => {
+    setLockedCategory(null);
+    setHoveredLegendCategory(null);
+  };
+
   const prevYear = () => {
+    clearCategoryFocus();
     setCurrentYear(currentYear() - 1);
   };
 
   const nextYear = () => {
+    clearCategoryFocus();
     setCurrentYear(currentYear() + 1);
   };
 
@@ -190,10 +275,6 @@ export const MappingItem: Component<Props> = (props) => {
     props.ref?.({ getMapping });
   });
 
-  onCleanup(() => {
-    props.ref?.(null as any);
-  });
-
   const handleSourceChange: JSX.EventHandler<HTMLSelectElement, Event> = (e) => {
     setSourceId(e.currentTarget.value);
   };
@@ -202,8 +283,53 @@ export const MappingItem: Component<Props> = (props) => {
     setUhabitsHabitId(e.currentTarget.value);
   };
 
+  let removeGridClickListener: (() => void) | undefined;
+
+  const attachGridClickListener = (grid: any) => {
+    removeGridClickListener?.();
+
+    const shadowRoot = grid?.shadowRoot as ShadowRoot | undefined;
+    if (!shadowRoot) return;
+
+    // activity-grid renders cells in an open shadow root but has no click API.
+    // Delegating here keeps the integration local without changing the package.
+    const getCellCategory = (target: EventTarget | null): GraphCategory | null => {
+      if (!(target instanceof Element)) return null;
+      const cell = target.closest('.cell');
+      return categoryForCount(Number(cell?.getAttribute('data-count')));
+    };
+
+    const handleGridClick = (event: Event) => {
+      const category = getCellCategory(event.target);
+      if (!category) return;
+
+      event.stopPropagation();
+      setHoveredLegendCategory(null);
+      setLockedCategory(category);
+    };
+
+    shadowRoot.addEventListener('click', handleGridClick);
+
+    removeGridClickListener = () => {
+      shadowRoot.removeEventListener('click', handleGridClick);
+      removeGridClickListener = undefined;
+    };
+  };
+
+  onCleanup(() => {
+    removeGridClickListener?.();
+    props.ref?.(null as any);
+  });
+
   return (
-    <div class="mapping-item" data-mapping-id={props.mappingId}>
+    <div
+      class="mapping-item"
+      data-mapping-id={props.mappingId}
+      onClick={clearCategoryFocus}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') clearCategoryFocus();
+      }}
+    >
       <div class="mapping-selects">
         <select
           class="stt-activity-select"
@@ -314,12 +440,48 @@ export const MappingItem: Component<Props> = (props) => {
             </button>
           </div>
           <activity-grid
-            ref={gridRef}
+            ref={(element: any) => {
+              gridRef = element;
+              if (element) {
+                element.colors = getGraphColors(gridData(), activeCategory());
+                attachGridClickListener(element);
+              } else {
+                removeGridClickListener?.();
+              }
+            }}
             start-week-on-monday
             class="habit-preview-grid"
             dark-mode
-            color-theme="purple"
           />
+          <div class="activity-legend" role="group" aria-label="Activity graph legend">
+            <span class="activity-legend-title">Legend</span>
+            <For each={legendItems}>
+              {(item) => (
+                <button
+                  type="button"
+                  class="activity-legend-item"
+                  classList={{
+                    'is-focused': activeCategory() === item.category,
+                    'is-dimmed': activeCategory() !== null && activeCategory() !== item.category
+                  }}
+                  aria-pressed={lockedCategory() === item.category}
+                  title={item.title}
+                  onPointerEnter={() => setHoveredLegendCategory(item.category)}
+                  onPointerLeave={() => setHoveredLegendCategory(null)}
+                  onFocus={() => setHoveredLegendCategory(item.category)}
+                  onBlur={() => setHoveredLegendCategory(null)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setHoveredLegendCategory(null);
+                    setLockedCategory(item.category);
+                  }}
+                >
+                  <span class="activity-legend-swatch" style={{ 'background-color': GRAPH_COLORS[item.category] }} aria-hidden="true" />
+                  {item.label()}
+                </button>
+              )}
+            </For>
+          </div>
         </div>
       </Show>
     </div>
