@@ -40,7 +40,7 @@ export async function parseSttBackup(file: File): Promise<ParsedSttBackup> {
 		const type = row[0] as SttRowType;
 		
 		if (type === 'recordType') {
-			// recordType	1	Guitar	🎸	2	0	0
+			// recordType\t1\tGuitar\t🎸\t2\t0\t0
 			const recordType = parseSttRow(SttRecordTypeSchema, {
 				id: parseInt(row[1], 10),
 				name: row[2] || '',
@@ -54,7 +54,9 @@ export async function parseSttBackup(file: File): Promise<ParsedSttBackup> {
 			}
 			
 		} else if (type === 'record') {
-			// record	4	3	1691576017000	1691584365000	Fireship sveltekit course kung.foo
+			// Current backups contain a legacy tag-id field at index 6. Comments
+			// are stored only at index 5; joining the remaining columns turns an
+			// empty comment plus an empty legacy field into a spurious tab note.
 			let end_timestamp = parseInt(row[4], 10);
 			
 			// Handle malformed timestamps (e.g., ending with 'f')
@@ -70,14 +72,14 @@ export async function parseSttBackup(file: File): Promise<ParsedSttBackup> {
 				type_id: parseInt(row[2], 10),
 				start_timestamp: parseInt(row[3], 10),
 				end_timestamp,
-				comment: row.slice(5).join('\t') || undefined,
+				comment: row[5] || undefined,
 			};
 			
 			const record = parseSttRow(SttRecordSchema, recordInput, 'STT record row', row.join('\t'));
 			if (record) records.push(record);
 			
 		} else if (type === 'category') {
-			// category	1	2 - Productive Hobbies	9
+			// category\t1\t2 - Productive Hobbies\t9
 			const category = parseSttRow(SttCategorySchema, {
 				id: parseInt(row[1], 10),
 				name: row[2] || '',
@@ -89,7 +91,7 @@ export async function parseSttBackup(file: File): Promise<ParsedSttBackup> {
 			}
 			
 		} else if (type === 'recordTag') {
-			// recordTag	1		e-reader	0	0		📓	5		0
+			// recordTag\t1\t\te-reader\t0\t0\t\t📓\t5\t\t0
 			const recordTag = parseSttRow(SttRecordTagSchema, {
 				id: parseInt(row[1], 10),
 				name: row[3] || '',
