@@ -1,5 +1,5 @@
 import { createSignal, For, onMount, onCleanup, createEffect, type Component } from 'solid-js';
-import { MappingItem } from './MappingItem';
+import { MappingItem, type HabitSourceKind } from './MappingItem';
 import type { SttStore } from '../stores/sttStore';
 import type { ConversionMapping } from '../schemas/uhabits';
 
@@ -8,6 +8,8 @@ interface Props {
   sttStore: SttStore;
   onConvert: () => void;
   onMappingsChange: (mappings: ConversionMapping[]) => void;
+  sourceKind: HabitSourceKind;
+  resetToken: number;
 }
 
 interface MappingRef {
@@ -21,6 +23,7 @@ interface MappingItemApi {
 export const SttControls: Component<Props> = (props) => {
   const [mappings, setMappings] = createSignal<MappingRef[]>([]);
   const [nextId, setNextId] = createSignal(0);
+  const [validMappingCount, setValidMappingCount] = createSignal(0);
   const mappingRefs = new Map<number, MappingItemApi>();
 
   // Add initial mapping
@@ -38,6 +41,7 @@ export const SttControls: Component<Props> = (props) => {
   const removeMapping = (id: number) => {
     mappingRefs.delete(id);
     setMappings(mappings().filter(m => m.id !== id));
+    queueMicrotask(emitMappings);
   };
 
   // Collect current mappings from refs and emit to parent
@@ -53,40 +57,68 @@ export const SttControls: Component<Props> = (props) => {
     return result;
   };
 
+  const emitMappings = () => {
+    const result = collectMappings();
+    setValidMappingCount(result.length);
+    props.onMappingsChange(result);
+  };
+
+
+  let lastResetToken = props.resetToken;
+  createEffect(() => {
+    const resetToken = props.resetToken;
+    if (resetToken === lastResetToken) return;
+
+    lastResetToken = resetToken;
+    mappingRefs.clear();
+    setMappings([]);
+    setValidMappingCount(0);
+    props.onMappingsChange([]);
+    queueMicrotask(addMapping);
+  });
+
   // Emit mappings whenever they might have changed
   createEffect(() => {
-    // Track all dependencies that could affect mappings
     mappings();
     props.sttStore.sttData();
+    props.sttStore.timeJotData();
     props.sttStore.uhabitsData();
+    props.sourceKind;
     
     // Small delay to ensure refs are populated after render
-    setTimeout(() => {
-      props.onMappingsChange(collectMappings());
-    }, 0);
+    setTimeout(emitMappings, 0);
   });
 
   const canConvert = () => {
-    return props.sttStore.sttData() && props.sttStore.uhabitsData() &&
-      props.sttStore.sttFile() && props.sttStore.uhabitsFile() &&
-      mappings().length > 0;
+    const hasSource = props.sourceKind === 'timejot'
+      ? props.sttStore.timeJotData() && props.sttStore.timeJotFile()
+      : props.sttStore.sttData() && props.sttStore.sttFile();
+
+    return hasSource && props.sttStore.uhabitsData() && props.sttStore.uhabitsFile() &&
+      validMappingCount() > 0;
   };
 
   return (
     <section id="action-stt-uhabits-fill" class="controls-block">
-      <h3>SimpleTimeTracker ⇌ uHabits: Fill</h3>
+      <h3>{props.sourceKind === 'timejot' ? 'TimeJot → uHabits: Fill' : 'SimpleTimeTracker → uHabits: Fill'}</h3>
 
       <div id="conversion-mappings">
-        <h4>Activity Mappings</h4>
+        <h4>{props.sourceKind === 'timejot' ? 'Event Mappings' : 'Activity Mappings'}</h4>
         <div id="mapping-list">
           <For each={mappings()}>
             {(mapping) => (
               <MappingItem
-                ref={(api: any) => mappingRefs.set(mapping.id, api)}
+                ref={(api: any) => {
+                  if (api) mappingRefs.set(mapping.id, api);
+                  else mappingRefs.delete(mapping.id);
+                }}
                 mappingId={mapping.id}
+                sourceKind={props.sourceKind}
                 sttData={props.sttStore.sttData()}
+                timeJotData={props.sttStore.timeJotData()}
                 uhabitsData={props.sttStore.uhabitsData()}
                 onRemove={() => removeMapping(mapping.id)}
+                onChange={emitMappings}
               />
             )}
           </For>

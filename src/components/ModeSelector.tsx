@@ -1,6 +1,6 @@
 import { For, type Component } from 'solid-js';
 
-export type Mode = 'merge' | 'convert' | 'stt';
+export type Mode = 'merge' | 'convert' | 'stt' | 'timejot';
 
 interface Props {
   mode: () => Mode;
@@ -14,9 +14,10 @@ interface ModeOption {
 }
 
 const modeOptions: ModeOption[] = [
-  { id: 'mode-merge', value: 'merge', labelText: 'NewPipe ⇌ LibreTube: Merge' },
-  { id: 'mode-convert', value: 'convert', labelText: 'NewPipe ⇌ LibreTube: Convert' },
+  { id: 'mode-merge', value: 'merge', labelText: 'NewPipe ⇄ LibreTube: Merge' },
+  { id: 'mode-convert', value: 'convert', labelText: 'NewPipe ⇄ LibreTube: Convert' },
   { id: 'mode-stt', value: 'stt', labelText: 'SimpleTimeTracker → uHabits' },
+  { id: 'mode-timejot', value: 'timejot', labelText: 'TimeJot → uHabits' },
 ];
 
 export const ModeSelector: Component<Props> = (props) => {

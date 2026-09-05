@@ -16,6 +16,9 @@
 	--button-bg-active: #3c3c3c;
 }
 * { box-sizing: border-box; }
+html, body, #app, .container {
+	scrollbar-gutter: stable;
+}
 
 body {
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -29,25 +32,28 @@ body {
 	min-height: 100vh;
 }
 
+#app {
+	width: 100%;
+	max-width: 90ch;
+}
+
 .container {
 	width: 100%;
-	max-width: 900px;
-	background: var(--surface);
-	padding: 20px;
+	padding-block: 20px;
 	border-radius: 12px;
-	box-shadow: 0 4px 6px rgba(0, 0, 0, 0.18);
-	border: 1px solid var(--border);
 }
 
 h1 {
 	margin-top: 0;
 	text-align: center;
 	color: var(--primary);
+	font-size: clamp(1.5rem, 6vw, 2rem);
 }
 h3 {
 	border-bottom: 1px solid var(--border);
-	padding-bottom: 10px;
-	margin-top: 25px;
+	padding-bottom: 1rem;
+	margin-top: 1rem;
+	text-align: center;
 }
 
 .radio-label {
@@ -147,6 +153,7 @@ h3 {
 /* Mode Selection */
 .mode-selector {
 	display: flex;
+	width: 100%;
 	flex-direction: column;
 	gap: 12px;
 	align-items: center;
@@ -156,12 +163,17 @@ h3 {
 }
 
 .mode-switch {
-	display: flex;
-	justify-content: center;
-	flex-wrap: wrap;
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	width: 100%;
 	gap: .5rem;
-	align-items: center;
 }
+@media (width < 40rem) { 
+	.mode-switch {
+		grid-auto-flow: row;
+		grid-template-columns: 1fr;
+	}
+ }
 
 .mode-switch input[type="radio"] {
 	/* visually hide native radios but keep accessible */
@@ -172,7 +184,7 @@ h3 {
 }
 
 .mode-pill {
-	width: max-content;
+	width: 100%;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -208,7 +220,7 @@ h3 {
 	display: flex;
 	gap: 4px;
 	align-items: center;
-	line-height: 1.25;
+	line-height: 1;
 }
 
 /* Merge/convert control blocks */
@@ -219,6 +231,9 @@ h3 {
 	background: #242424;
 	border: 1px solid var(--border);
 	margin-bottom: 1rem;
+}
+.controls-block h3 {
+	margin-top: 0px;
 }
 
 .merge-options {
@@ -473,21 +488,22 @@ button:active:not(:disabled) {
 } */
 
 .mapping-selects {
-	display: flex;
-	flex-wrap: wrap-reverse;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
 	align-items: center;
 	gap: 12px;
 	margin-bottom: 10px;
 }
 
 .remove-mapping {
-	margin-left: auto;
+	margin-left: 0;
 }
 
 .stt-activity-select,
 .uhabits-habit-select {
-	flex: 1;
-	min-width: 200px;
+	/* flex: 1; */
+	width: 100%;
+	min-width: 0px;
 	padding: 10px 12px;
 	background: #2c2c2c;
 	border: 1px solid var(--border);
@@ -523,6 +539,8 @@ button:active:not(:disabled) {
 	gap: 20px;
 	flex-wrap: wrap;
 	padding: 8px 0;
+	min-height: 2.7rem;
+	line-height: 1;
 }
 
 .option-item {
@@ -597,6 +615,62 @@ button:active:not(:disabled) {
 	background: #0d0d0d;
 	border-radius: 6px;
 	border: 1px solid var(--border);
+	max-width: 100%;
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+}
+
+.activity-legend {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-wrap: wrap;
+	gap: 6px 14px;
+	margin-top: 12px;
+	padding-top: 10px;
+	border-top: 1px solid var(--border);
+}
+
+.activity-legend-title {
+	color: var(--text-muted);
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.activity-legend-item {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 6px;
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	color: var(--text-muted);
+	font-size: 12px;
+	font-weight: 400;
+	transition: opacity 0.18s, background-color 0.18s, border-color 0.18s, color 0.18s;
+}
+
+.activity-legend-item:hover:not(:disabled),
+.activity-legend-item:focus-visible,
+.activity-legend-item.is-focused {
+	transform: none;
+	box-shadow: none;
+	background: var(--button-bg);
+	border-color: var(--border-hover);
+	color: var(--text);
+}
+
+.activity-legend-item.is-dimmed {
+	opacity: 0.24;
+}
+
+.activity-legend-swatch {
+	display: inline-block;
+	width: 10px;
+	height: 10px;
+	border-radius: 2px;
+	flex: 0 0 auto;
 }
 
 .grid-year-nav {
@@ -634,6 +708,47 @@ button:active:not(:disabled) {
 	color: var(--text);
 	min-width: 60px;
 	text-align: center;
+}
+
+/* medium-width */
+@media (width < 48rem) {
+	.mapping-selects {
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+
+	.stt-activity-select {
+		grid-column: 1;
+		grid-row: 1;
+	}
+
+	.mapping-arrow {
+		grid-column: 2;
+		grid-row: 1;
+	}
+
+	.uhabits-habit-select {
+		grid-column: 1;
+		grid-row: 2;
+	}
+
+	.remove-mapping {
+		grid-column: 2;
+		grid-row: 2;
+	}
+}
+
+/* narrow layout */
+@media (width < 30rem) {
+	.mapping-selects {
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 10px;
+	}
+
+	.mapping-options {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 12px;
+	}
 }
 
 @media (width >= 52rem) { 

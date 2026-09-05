@@ -19,19 +19,18 @@ interface Props {
 export const FileZone: Component<Props> = (props) => {
   const [fileName, setFileName] = createSignal<string>('');
   let fileInputRef: HTMLInputElement | undefined;
-  let prevModeType: 'newpipe' | 'stt' = 'newpipe';
+  let prevModeType: 'newpipe' | 'stt' | 'timejot' = 'newpipe';
 
   const config = () => props.configs[props.mode()];
 
   // Clear file when switching between converter types
   createEffect(() => {
     const currentMode = props.mode();
-    const currentModeType = (currentMode === 'merge' || currentMode === 'convert') ? 'newpipe' : 'stt';
+    const currentModeType = (currentMode === 'merge' || currentMode === 'convert') ? 'newpipe' : currentMode;
     
     if (prevModeType !== currentModeType) {
       if (fileInputRef) fileInputRef.value = '';
       setFileName('');
-      props.onFileChange(null);
     }
     
     prevModeType = currentModeType;

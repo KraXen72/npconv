@@ -1,12 +1,12 @@
 import type { SqlJsStatic } from 'sql.js';
 import type { ConversionMapping } from '../../schemas/uhabits';
 import { parseSttBackup, filterRecordsByDuration, groupRecordsByDay, getRecordsForType } from './sttParser';
-import { parseUHabitsBackup, timestampToDayStart, exportUHabitsBackup } from './uhabitsHelper';
+import { parseUHabitsBackup, exportUHabitsBackup } from './uhabitsHelper';
 import { log } from '../../logger';
-import { insertRepetition } from '../../db/uhabitsRepo';
+import { importMappedDays } from '../shared/mappedUHabitsImport';
 
 /**
- * Convert Simple Time Tracker records to uHabits boolean habit entries
+ * Convert Simple Time Tracker records to uHabits habit entries.
  */
 export async function convertSttToUHabits(
 	sttFile: File,
@@ -15,99 +15,35 @@ export async function convertSttToUHabits(
 	SQL: SqlJsStatic
 ): Promise<Blob> {
 	log('Starting STT → uHabits conversion', 'info');
-	
+
 	const sttData = await parseSttBackup(sttFile);
 	log(`Loaded ${sttData.recordTypes.size} activities, ${sttData.records.length} records`, 'info');
-	
-	const { db, allHabits, booleanHabits, repetitions } = await parseUHabitsBackup(uhabitsFile, SQL);
-	log(`Loaded ${allHabits.size} habits, ${repetitions.length} repetitions`, 'info');
-	
-	// Build set of existing repetitions for deduplication
-	// This prevents duplicates when multiple STT activities map to the same uHabits habit,
-	// or when a day already has a repetition in the uHabits backup
-	const existingReps = new Set<string>();
-	for (const rep of repetitions) {
-		existingReps.add(`${rep.habit_id}:${rep.timestamp}`);
-	}
-	
-	// Process each mapping and collect new repetitions
-	// Note: Multiple STT activities can map to the same uHabits habit.
-	// The existingReps Set ensures no duplicate repetitions are created for the same habit+day.
-	const newRepetitions: Array<{ habitId: number, timestamp: number, notes: string }> = [];
-	const mappingStats: Array<{ name: string, newCount: number, skippedCount: number }> = [];
-	
-	for (const mapping of mappings) {
-		const sttType = sttData.recordTypes.get(mapping.sttTypeId);
-		const uhabit = booleanHabits.get(mapping.uhabitsHabitId);
-		
-		if (!sttType || !uhabit) {
-			log(`Skipping invalid mapping`, 'warn');
-			continue;
-		}
-		
-		const minDuration = mapping.minDuration || 0;
-		const filteredRecords = filterRecordsByDuration(sttData.records, minDuration);
-		const typeRecords = getRecordsForType(filteredRecords, mapping.sttTypeId);
-		
-		if (typeRecords.length === 0) continue;
-		
-		const dayGroups = groupRecordsByDay(typeRecords);
-		let newCount = 0;
-		let skippedCount = 0;
-		
-		for (const [dayStr, dayRecords] of dayGroups) {
-			const dayTimestamp = timestampToDayStart(dayRecords[0].start_timestamp);
-			const key = `${mapping.uhabitsHabitId}:${dayTimestamp}`;
-			
-			if (existingReps.has(key)) {
-				skippedCount++;
-				continue;
-			}
-			
-			const totalDurationMs = dayRecords.reduce((sum, r) => 
-				sum + (r.end_timestamp - r.start_timestamp), 0
+
+	const uhabits = await parseUHabitsBackup(uhabitsFile, SQL);
+	const { db } = uhabits;
+
+	try {
+		const inserted = importMappedDays(db, uhabits, mappings, mapping => {
+			const sttType = sttData.recordTypes.get(mapping.sourceId);
+			if (!sttType) return null;
+			const records = getRecordsForType(
+				filterRecordsByDuration(sttData.records, mapping.minDuration ?? 0),
+				mapping.sourceId
 			);
-			const totalMinutes = Math.round(totalDurationMs / 60000);
-			
-			let notes = '';
-			if (mapping.copySttComments) {
-				const comments = dayRecords
-					.map(r => r.comment)
-					.filter((c): c is string => !!c && c.trim().length > 0);
-				if (comments.length > 0) {
-					notes = [...new Set(comments)].join('; ');
-				}
-			}
-			
-			newRepetitions.push({ habitId: mapping.uhabitsHabitId, timestamp: dayTimestamp, notes });
-			existingReps.add(key);
-			newCount++;
-		}
-		
-		mappingStats.push({ 
-			name: `"${sttType.emoji} ${sttType.name}" -> "${uhabit.name}"`, 
-			newCount, 
-			skippedCount 
+			return {
+				label: `${sttType.emoji} ${sttType.name}`.trim(),
+				days: [...groupRecordsByDay(records)].map(([dayKey, dayRecords]) => ({
+					dayKey,
+					notes: dayRecords.map(record => record.comment ?? '').filter(Boolean)
+				}))
+			};
 		});
+
+		log(`Conversion complete: ${inserted} new repetitions added`, 'info');
+
+		const dbData = exportUHabitsBackup(db);
+		return new Blob([dbData as any], { type: 'application/x-sqlite3' });
+	} finally {
+		db.close();
 	}
-	
-	// Sort new repetitions by timestamp before inserting
-	newRepetitions.sort((a, b) => a.timestamp - b.timestamp);
-	
-	// Insert all new repetitions in sorted order
-	for (const rep of newRepetitions) {
-		insertRepetition(db, { ...rep, value: 2 });
-	}
-	
-	// Log results
-	for (const stat of mappingStats) {
-		log(`${stat.name}: +${stat.newCount}${stat.skippedCount > 0 ? ` (${stat.skippedCount} skipped)` : ''}`, 'info');
-	}
-	
-	log(`Conversion complete: ${newRepetitions.length} new repetitions added`, 'info');
-	
-	const dbData = exportUHabitsBackup(db);
-	db.close();
-	
-	return new Blob([dbData as any], { type: 'application/x-sqlite3' });
 }

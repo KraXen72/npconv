@@ -54,6 +54,14 @@ export function clearTableIfExists(db: Database, tableName: string): void {
 	}
 }
 
+
+export function clearPlaylists(db: Database): void {
+	const orm = getNewPipeDb(db);
+	orm.delete(playlistStreamJoin).run();
+	orm.delete(playlists).run();
+	orm.delete(remotePlaylists).run();
+}
+
 export function deleteYoutubeSubscriptions(db: Database): void {
 	getNewPipeDb(db).delete(subscriptions).where(eq(subscriptions.service_id, SERVICE_ID_YOUTUBE)).run();
 }
