@@ -34,7 +34,7 @@ If you encounter any issues, and you'd like them see fixed:
 I cannot promise when they will be fixed for option 2), so option 1) is preferred.  
 
 ## usage example
-E.g. If you used newpipe 6months ago, then used libretube since now, and are going back to newpipe:
+E.g. If you used newpipe up until 6 months ago, then used libretube from then until now, and are going back to newpipe:
 1. select `Merge`
 2. Load your 6-months-old newpipe backup
 3. load your current, latest libretube export
