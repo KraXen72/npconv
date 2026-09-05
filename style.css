@@ -615,6 +615,9 @@ button:active:not(:disabled) {
 	background: #0d0d0d;
 	border-radius: 6px;
 	border: 1px solid var(--border);
+	max-width: 100%;
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
 }
 
 .grid-year-nav {
