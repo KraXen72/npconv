@@ -50,6 +50,6 @@ _Existing Loop Habit entries are never overwritten._
 ### Reporting Issues
 If you encounter any issues, and you'd like them see fixed:
 1. best way is to open a pull request fixing the issue.
-2. Alternatively, open an issue including **both** your backup files (you may redact them as much as you want)
+2. alternatively, open an issue including **both** your backup files (you may redact them as much as you want)
   
 I cannot promise when they will be fixed for option 2), so option 1) is preferred.  
