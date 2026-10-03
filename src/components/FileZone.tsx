@@ -1,4 +1,4 @@
-import type { Component } from 'solid-js';
+import type { Component, JSX } from 'solid-js';
 import { createSignal, createEffect } from 'solid-js';
 import { log } from '../logger';
 import type { Mode } from './ModeSelector';
@@ -60,7 +60,6 @@ export const FileZone: Component<Props> = (props) => {
   return (
     <div
       class="drop-zone"
-      classList={{ 'has-file': !!fileName() }}
       id={props.id}
       role="button"
       tabindex="0"
@@ -70,7 +69,7 @@ export const FileZone: Component<Props> = (props) => {
         fileInputRef?.click();
       }}
       onKeyDown={(e) => {
-        if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+        if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           fileInputRef?.click();
         }
@@ -115,9 +114,6 @@ export const FileZone: Component<Props> = (props) => {
         </svg>
       </button>
       
-      <svg class="upload-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M12 16V4m-4 4 4-4 4 4M4 16v4h16v-4" />
-      </svg>
       <h4 class="zone-title">{config().title}</h4>
       <p>
         <small class="hint zone-hint" innerHTML={config().hint} />
@@ -126,8 +122,6 @@ export const FileZone: Component<Props> = (props) => {
       <input
         ref={fileInputRef}
         type="file"
-        tabindex="-1"
-        aria-label={`Select ${config().title}`}
         accept={config().accept}
         onChange={(e) => handleFileChange(e.currentTarget.files)}
       />

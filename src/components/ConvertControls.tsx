@@ -7,7 +7,7 @@ interface Props {
 export const ConvertControls: Component<Props> = (props) => {
   return (
     <section id="action-newpipe-libretube-convert" class="controls-block">
-      <h2>NewPipe ⇌ LibreTube: Convert</h2>
+      <h3>NewPipe ⇌ LibreTube: Convert</h3>
       
       <div class="controls">
         <button id="btn-to-newpipe" type="button" onClick={() => props.onConvert('to_newpipe')}>

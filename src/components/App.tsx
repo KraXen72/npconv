@@ -58,22 +58,22 @@ export const App: Component<Props> = (props) => {
   const leftFileConfigs = {
     merge: {
       title: 'NewPipe Backup (.zip)',
-      hint: 'Contains newpipe.db<br>Choose a file or drag it here',
+      hint: 'Contains newpipe.db<br>click/drop file to upload',
       accept: '.zip'
     },
     convert: {
       title: 'NewPipe Backup (.zip)',
-      hint: 'Contains newpipe.db<br>Choose a file or drag it here',
+      hint: 'Contains newpipe.db<br>click/drop file to upload',
       accept: '.zip'
     },
     stt: {
       title: 'Simple Time Tracker (.backup)',
-      hint: 'Upload your .backup file<br>Choose a file or drag it here',
+      hint: 'Upload your .backup file<br>click/drop file to upload',
       accept: '.backup'
     },
     timejot: {
       title: 'TimeJot Export (.db)',
-      hint: 'Upload your TimeJot .db file<br>Choose a file or drag it here',
+      hint: 'Upload your TimeJot .db file<br>click/drop file to upload',
       accept: '.db'
     }
   };
@@ -81,22 +81,22 @@ export const App: Component<Props> = (props) => {
   const rightFileConfigs = {
     merge: {
       title: 'LibreTube Backup (.json)',
-      hint: 'JSON export file<br>Choose a file or drag it here',
+      hint: 'JSON export file<br>click/drop file to upload',
       accept: '.json'
     },
     convert: {
       title: 'LibreTube Backup (.json)',
-      hint: 'JSON export file<br>Choose a file or drag it here',
+      hint: 'JSON export file<br>click/drop file to upload',
       accept: '.json'
     },
     stt: {
       title: 'uHabits Backup (.db)',
-      hint: 'Upload your .db file<br>Choose a file or drag it here',
+      hint: 'Upload your .db file<br>click/drop file to upload',
       accept: '.db'
     },
     timejot: {
       title: 'uHabits Backup (.db)',
-      hint: 'Upload your .db file<br>Choose a file or drag it here',
+      hint: 'Upload your .db file<br>click/drop file to upload',
       accept: '.db'
     }
   };
@@ -222,15 +222,8 @@ export const App: Component<Props> = (props) => {
   };
 
   return (
-    <main class="container">
-      <header class="app-header">
-        <div>
-          <div class="brand">npconv <span>BACKUP TOOLS</span></div>
-          <h1>Backup converter</h1>
-          <p>Move your data. Keep what matters.</p>
-        </div>
-        <span class="privacy-note"><span aria-hidden="true">●</span> Files stay on your device</span>
-      </header>
+    <div class="container">
+      <h1>npconv backup converter</h1>
 
       <ModeSelector mode={mode} setMode={handleModeChange} />
 
@@ -255,7 +248,7 @@ export const App: Component<Props> = (props) => {
 
       <Show when={isNewPipeMode()}>
         <div id="global-options">
-          <label for="include-watch-history">Include watch history</label>
+          <label for="include-watch-history">Include watch history:</label>
           <input
             type="checkbox"
             id="include-watch-history"
@@ -281,7 +274,6 @@ export const App: Component<Props> = (props) => {
       </section>
 
       <DebugConsole />
-      <footer class="app-footer">Private by design. All conversions run in your browser.</footer>
-    </main>
+    </div>
   );
 };

@@ -349,7 +349,6 @@ export const MappingItem: Component<Props> = (props) => {
       <div class="mapping-selects">
         <select
           class="stt-activity-select"
-          aria-label={props.sourceKind === 'timejot' ? 'TimeJot event' : 'Time Tracker activity'}
           data-mapping-id={props.mappingId}
           value={sourceId()}
           onChange={handleSourceChange}
@@ -368,7 +367,6 @@ export const MappingItem: Component<Props> = (props) => {
 
         <select
           class="uhabits-habit-select"
-          aria-label="uHabits habit"
           data-mapping-id={props.mappingId}
           value={uhabitsHabitId()}
           onChange={handleUhabitsChange}
