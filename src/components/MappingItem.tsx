@@ -25,17 +25,18 @@ interface GridDataPoint {
 // Keep in sync with --secondary / --primary in style.css
 const GRAPH_COLORS: Record<GraphCategory, string> = {
   source: '#2dd4bf',
-  existing: '#9d8bf6',
+  existing: '#a898f8',
   overlap: '#e6defc'
 };
 
 const GRAPH_DIM_COLORS: Record<GraphCategory, string> = {
-  source: '#143c3a',
-  existing: '#2f2b4d',
-  overlap: '#47435f'
+  source: '#204c4c',
+  existing: '#3b3954',
+  overlap: '#444550'
 };
 
-const GRAPH_BASE_COLORS = ['#1a1e26', '#272a3a', '#312f4a', '#3b3858', '#464266'];
+const GRAPH_EMPTY_COLOR = '#2e323c';
+const GRAPH_BASE_COLORS = ['#2e323c', '#3a3856', '#454268', '#514d7a', '#5f5a8f'];
 
 const Chevron: Component<{ direction: 'left' | 'right' }> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -496,6 +497,7 @@ export const MappingItem: Component<Props> = (props) => {
               gridRef = element;
               if (element) {
                 element.colors = GRAPH_BASE_COLORS;
+                element.emptyColor = GRAPH_EMPTY_COLOR;
                 attachGridClickListener(element);
                 applyGraphCellColors(element, untrack(activeCategory));
               } else {
