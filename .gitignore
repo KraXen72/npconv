@@ -8,3 +8,4 @@ dist/
 /_artifacts
 repomix-output.xml
 *:Zone.Identifier
+.playwright-cli
