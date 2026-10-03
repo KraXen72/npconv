@@ -14,9 +14,12 @@ export function DebugConsole() {
   });
 
   return (
-    <>
-      <h3>debug log</h3>
-      <div id="debug-console" ref={consoleRef} innerHTML={logStore.logs()} />
-    </>
+    <section class="log-section" aria-labelledby="log-heading">
+      <div class="log-header">
+        <h2 id="log-heading">Activity log</h2>
+        <span>Conversion details &amp; diagnostics</span>
+      </div>
+      <div id="debug-console" role="log" aria-label="Conversion activity" tabindex="0" ref={consoleRef} innerHTML={logStore.logs()} />
+    </section>
   );
 }

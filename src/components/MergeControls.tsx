@@ -22,10 +22,10 @@ export const MergeControls: Component<Props> = (props) => {
 
   return (
     <section id="action-newpipe-libretube-merge" class="controls-block">
-      <h3>NewPipe ⇌ LibreTube: Merge</h3>
+      <h2>NewPipe ⇌ LibreTube: Merge</h2>
       
       <div class="merge-options">
-        <label for="playlist-behavior">Playlists handling:</label>
+        <label for="playlist-behavior">Playlist handling</label>
         <select
           id="playlist-behavior"
           value={playlistBehavior()}
@@ -60,7 +60,7 @@ export const MergeControls: Component<Props> = (props) => {
 
       <div class="controls">
         <button id="btn-merge" type="button" onClick={handleMerge}>
-          Merge
+          Merge into {direction() === 'to_newpipe' ? 'NewPipe' : 'LibreTube'}
         </button>
       </div>
     </section>

@@ -100,7 +100,7 @@ export const SttControls: Component<Props> = (props) => {
 
   return (
     <section id="action-stt-uhabits-fill" class="controls-block">
-      <h3>{props.sourceKind === 'timejot' ? 'TimeJot → uHabits: Fill' : 'SimpleTimeTracker → uHabits: Fill'}</h3>
+      <h2>{props.sourceKind === 'timejot' ? 'TimeJot → uHabits: Fill' : 'SimpleTimeTracker → uHabits: Fill'}</h2>
 
       <div id="conversion-mappings">
         <h4>{props.sourceKind === 'timejot' ? 'Event Mappings' : 'Activity Mappings'}</h4>

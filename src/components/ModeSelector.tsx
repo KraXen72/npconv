@@ -11,13 +11,14 @@ interface ModeOption {
   id: string;
   value: Mode;
   labelText: string;
+  route: string;
 }
 
 const modeOptions: ModeOption[] = [
-  { id: 'mode-merge', value: 'merge', labelText: 'NewPipe ⇄ LibreTube: Merge' },
-  { id: 'mode-convert', value: 'convert', labelText: 'NewPipe ⇄ LibreTube: Convert' },
-  { id: 'mode-stt', value: 'stt', labelText: 'SimpleTimeTracker → uHabits' },
-  { id: 'mode-timejot', value: 'timejot', labelText: 'TimeJot → uHabits' },
+  { id: 'mode-merge', value: 'merge', labelText: 'Merge', route: 'NewPipe ⇄ LibreTube' },
+  { id: 'mode-convert', value: 'convert', labelText: 'Convert', route: 'NewPipe ⇄ LibreTube' },
+  { id: 'mode-stt', value: 'stt', labelText: 'Time Tracker', route: 'SimpleTimeTracker → uHabits' },
+  { id: 'mode-timejot', value: 'timejot', labelText: 'TimeJot', route: 'TimeJot → uHabits' },
 ];
 
 export const ModeSelector: Component<Props> = (props) => {
@@ -36,7 +37,8 @@ export const ModeSelector: Component<Props> = (props) => {
                 onChange={() => props.setMode(option.value)}
               />
               <label for={option.id} class="mode-pill">
-                {option.labelText}
+                <span class="mode-name">{option.labelText}</span>
+                <span class="mode-route">{option.route}</span>
               </label>
             </>
           )}
