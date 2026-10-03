@@ -15,7 +15,7 @@ function createLogStore() {
         : 'log-info';
       
       const escapedMsg = escapeHtml(msg);
-      const line = `<div class="${className}">[${timestamp}] ${escapedMsg}</div>`;
+      const line = `<div class="${className}"><span class="log-time">[${timestamp}]</span> ${escapedMsg}</div>`;
       setLogs(prev => prev + line);
     }
   };

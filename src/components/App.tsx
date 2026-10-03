@@ -223,7 +223,10 @@ export const App: Component<Props> = (props) => {
 
   return (
     <div class="container">
-      <h1>npconv backup converter</h1>
+      <header class="app-header">
+        <h1><span class="brand">npconv</span> backup converter</h1>
+        <p class="subtitle">Convert and merge app backups. Everything runs in your browser; your files never leave your device.</p>
+      </header>
 
       <ModeSelector mode={mode} setMode={handleModeChange} />
 
@@ -248,13 +251,15 @@ export const App: Component<Props> = (props) => {
 
       <Show when={isNewPipeMode()}>
         <div id="global-options">
-          <label for="include-watch-history">Include watch history:</label>
-          <input
-            type="checkbox"
-            id="include-watch-history"
-            checked={includeWatchHistory()}
-            onChange={(e) => setIncludeWatchHistory(e.currentTarget.checked)}
-          />
+          <label for="include-watch-history">
+            <input
+              type="checkbox"
+              id="include-watch-history"
+              checked={includeWatchHistory()}
+              onChange={(e) => setIncludeWatchHistory(e.currentTarget.checked)}
+            />
+            Include watch history
+          </label>
         </div>
       </Show>
 

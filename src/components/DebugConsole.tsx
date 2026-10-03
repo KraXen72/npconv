@@ -15,8 +15,8 @@ export function DebugConsole() {
 
   return (
     <>
-      <h3>debug log</h3>
-      <div id="debug-console" ref={consoleRef} innerHTML={logStore.logs()} />
+      <h3 class="section-label">debug log</h3>
+      <div id="debug-console" role="log" ref={consoleRef} innerHTML={logStore.logs()} />
     </>
   );
 }

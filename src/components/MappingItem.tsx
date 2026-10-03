@@ -22,19 +22,26 @@ interface GridDataPoint {
   count: number;
 }
 
+// Keep in sync with --secondary / --primary in style.css
 const GRAPH_COLORS: Record<GraphCategory, string> = {
-  source: '#00d1b2',
-  existing: '#9474CC',
-  overlap: '#e1c4ff'
+  source: '#2dd4bf',
+  existing: '#9d8bf6',
+  overlap: '#e6defc'
 };
 
 const GRAPH_DIM_COLORS: Record<GraphCategory, string> = {
-  source: '#123b38',
-  existing: '#362b45',
-  overlap: '#4b3f56'
+  source: '#143c3a',
+  existing: '#2f2b4d',
+  overlap: '#47435f'
 };
 
-const GRAPH_BASE_COLORS = ['#161b22', '#2a2a33', '#34313d', '#3c3845', '#45404f'];
+const GRAPH_BASE_COLORS = ['#1a1e26', '#272a3a', '#312f4a', '#3b3858', '#464266'];
+
+const Chevron: Component<{ direction: 'left' | 'right' }> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d={props.direction === 'left' ? 'm15 6-6 6 6 6' : 'm9 6 6 6-6 6'} />
+  </svg>
+);
 
 function categoryForCount(count: number): GraphCategory | null {
   if (count === 1) return 'source';
@@ -363,7 +370,7 @@ export const MappingItem: Component<Props> = (props) => {
           </For>
         </select>
 
-        <span class="mapping-arrow">▶</span>
+        <span class="mapping-arrow"><Chevron direction="right" /></span>
 
         <select
           class="uhabits-habit-select"
@@ -476,12 +483,12 @@ export const MappingItem: Component<Props> = (props) => {
       <Show when={showGrid()}>
         <div class="activity-grid-container">
           <div class="grid-year-nav">
-            <button class="year-prev" data-mapping-id={props.mappingId} title="Previous year" onClick={prevYear}>
-              ◀
+            <button class="year-prev" data-mapping-id={props.mappingId} title="Previous year" aria-label="Previous year" onClick={prevYear}>
+              <Chevron direction="left" />
             </button>
             <span class="grid-year-display">{currentYear()}</span>
-            <button class="year-next" data-mapping-id={props.mappingId} title="Next year" onClick={nextYear}>
-              ▶
+            <button class="year-next" data-mapping-id={props.mappingId} title="Next year" aria-label="Next year" onClick={nextYear}>
+              <Chevron direction="right" />
             </button>
           </div>
           <activity-grid

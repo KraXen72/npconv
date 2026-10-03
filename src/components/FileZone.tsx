@@ -1,5 +1,5 @@
-import type { Component, JSX } from 'solid-js';
-import { createSignal, createEffect } from 'solid-js';
+import type { Component } from 'solid-js';
+import { createSignal, createEffect, Show } from 'solid-js';
 import { log } from '../logger';
 import type { Mode } from './ModeSelector';
 
@@ -60,6 +60,7 @@ export const FileZone: Component<Props> = (props) => {
   return (
     <div
       class="drop-zone"
+      classList={{ 'has-file': !!fileName() }}
       id={props.id}
       role="button"
       tabindex="0"
@@ -114,6 +115,17 @@ export const FileZone: Component<Props> = (props) => {
         </svg>
       </button>
       
+      <div class="zone-icon" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <Show
+            when={fileName()}
+            fallback={<path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />}
+          >
+            <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zm0 0v5h5m-9.5 6 2 2 3.5-4" />
+          </Show>
+        </svg>
+      </div>
+
       <h4 class="zone-title">{config().title}</h4>
       <p>
         <small class="hint zone-hint" innerHTML={config().hint} />
