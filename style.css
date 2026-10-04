@@ -17,9 +17,11 @@
 	--text-faint: #7a8191;
 
 	--primary: #9d8bf6;
-	--primary-hover: #b2a4fa;
-	--primary-press: #8a76ee;
-	--on-primary: #0d0b1a;
+	/* Primary action buttons use a deeper, calmer violet than the accent */
+	--btn: #6f63bf;
+	--btn-hover: #7d72cc;
+	--btn-press: #6256ae;
+	--on-btn: #fff;
 	--secondary: #2dd4bf;
 	--error: #f08a9b;
 	--warn: #f2c46d;
@@ -32,6 +34,7 @@
 	--radius-lg: 16px;
 
 	--pad-card: 24px;
+	--control-h: 42px;
 
 	--shadow-card:
 		inset 0 1px 0 rgb(255 255 255 / 0.04),
@@ -202,7 +205,7 @@ h1 .brand { color: var(--primary); }
 /* Form controls */
 select,
 input[type="number"] {
-	min-height: 40px;
+	min-height: var(--control-h);
 	padding: 0 12px;
 	font: inherit;
 	color: var(--text);
@@ -308,21 +311,22 @@ button:disabled { cursor: not-allowed; }
 }
 
 .controls button {
-	min-width: 9.5rem;
-	min-height: 46px;
-	padding: 0 28px;
-	color: var(--on-primary);
-	font-weight: 600;
-	letter-spacing: 0.005em;
-	background: var(--primary);
+	min-width: 11rem;
+	min-height: 52px;
+	padding: 0 32px;
+	color: var(--on-btn);
+	font-size: 1.125rem;
+	font-weight: 700;
+	letter-spacing: 0.01em;
+	background: var(--btn);
 	border-radius: var(--radius);
 	transition: background-color 0.15s, transform 0.1s;
 }
 
-.controls button:hover:not(:disabled) { background: var(--primary-hover); }
+.controls button:hover:not(:disabled) { background: var(--btn-hover); }
 
 .controls button:active:not(:disabled) {
-	background: var(--primary-press);
+	background: var(--btn-press);
 	transform: translateY(1px);
 }
 
@@ -331,13 +335,12 @@ button:disabled { cursor: not-allowed; }
 	background: var(--surface-3);
 }
 
+/* On phones buttons fill the row, and wrap onto their own rows when two
+   don't fit side by side, so the text can stay large */
 @media (width < 40rem) {
-	.controls { flex-wrap: nowrap; gap: 8px; }
 	.controls button {
-		flex: 1;
-		min-width: 0;
-		padding: 0 8px;
-		font-size: 0.875rem;
+		flex: 1 1 12rem;
+		padding: 0 16px;
 	}
 }
 
@@ -346,8 +349,8 @@ button:disabled { cursor: not-allowed; }
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 2.25rem;
-	height: 2.25rem;
+	width: var(--control-h);
+	height: var(--control-h);
 	color: var(--text-muted);
 	background: var(--surface-3);
 	border: 1px solid var(--border);
@@ -640,7 +643,6 @@ input[type="file"] {
 .uhabits-habit-select {
 	width: 100%;
 	min-width: 0;
-	min-height: 42px;
 }
 
 .mapping-arrow {
@@ -675,9 +677,6 @@ input[type="file"] {
 
 .min-duration-input {
 	width: 4.25rem;
-	min-height: 34px;
-	padding: 0 8px;
-	font-size: 0.875rem;
 	text-align: center;
 }
 
@@ -716,7 +715,6 @@ input[type="file"] {
 
 @media (width < 40rem) {
 	.mapping-options { flex-direction: column; align-items: flex-start; gap: 14px; }
-	.min-duration-input { min-height: 40px; }
 }
 
 /* Activity grid preview */
