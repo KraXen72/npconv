@@ -17,11 +17,11 @@
 	--text-faint: #7a8191;
 
 	--primary: #9d8bf6;
-	/* Primary action buttons use a deeper, calmer violet than the accent */
-	--btn: #6f63bf;
-	--btn-hover: #7d72cc;
-	--btn-press: #6256ae;
-	--on-btn: #fff;
+	/* Primary action buttons use a calmer violet than the accent, with dark text */
+	--btn: #9489da;
+	--btn-hover: #a398e4;
+	--btn-press: #8479c8;
+	--on-btn: #0d0b1a;
 	--secondary: #2dd4bf;
 	--error: #f08a9b;
 	--warn: #f2c46d;
