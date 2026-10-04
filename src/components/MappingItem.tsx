@@ -25,18 +25,19 @@ interface GridDataPoint {
 // Keep in sync with --secondary / --primary in style.css
 const GRAPH_COLORS: Record<GraphCategory, string> = {
   source: '#2dd4bf',
-  existing: '#a898f8',
+  existing: '#9d8bf6',
   overlap: '#e6defc'
 };
 
 const GRAPH_DIM_COLORS: Record<GraphCategory, string> = {
-  source: '#204c4c',
-  existing: '#3b3954',
-  overlap: '#444550'
+  source: '#143c3a',
+  existing: '#2f2b4d',
+  overlap: '#47435f'
 };
 
-const GRAPH_EMPTY_COLOR = '#2e323c';
-const GRAPH_BASE_COLORS = ['#2e323c', '#3a3856', '#454268', '#514d7a', '#5f5a8f'];
+// The graph sits directly on the card surface, so empty days must be lighter than it
+const GRAPH_EMPTY_COLOR = '#1f232c';
+const GRAPH_BASE_COLORS = [GRAPH_EMPTY_COLOR, '#272a3a', '#312f4a', '#3b3858', '#464266'];
 
 const Chevron: Component<{ direction: 'left' | 'right' }> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

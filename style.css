@@ -5,22 +5,22 @@
 	color-scheme: dark;
 
 	/* Surfaces, from the page background up to raised elements */
-	--bg: #1a1c22;
-	--surface: #23262e;
-	--surface-2: #2b2f38;
-	--surface-3: #353a45;
-	--field: #1c1f25;
+	--bg: #0b0c10;
+	--surface: #12141a;
+	--surface-2: #171a21;
+	--surface-3: #1f232c;
+	--field: #0e1014;
 
-	--border: rgb(255 255 255 / 0.1);
-	--border-strong: rgb(255 255 255 / 0.2);
+	--border: rgb(255 255 255 / 0.08);
+	--border-strong: rgb(255 255 255 / 0.16);
 
-	--text: #f1f3f7;
-	--text-muted: #b0b7c4;
-	--text-faint: #8890a0;
+	--text: #eceef3;
+	--text-muted: #9aa1b0;
+	--text-faint: #7a8191;
 
-	--primary: #a898f8;
-	--primary-hover: #bcb0fb;
-	--primary-press: #9684f0;
+	--primary: #9d8bf6;
+	--primary-hover: #b2a4fa;
+	--primary-press: #8a76ee;
 	--on-primary: #0d0b1a;
 	--secondary: #2dd4bf;
 	--error: #f08a9b;
@@ -33,16 +33,12 @@
 	--radius: 12px;
 	--radius-lg: 16px;
 
-	/* Nested box padding. Tightened below 60rem so the fixed-width activity
-	   grid still fits without scrolling on tablets. */
 	--pad-card: 24px;
-	--pad-item: 16px;
-	--pad-graph: 16px;
 
 	--shadow-card:
-		inset 0 1px 0 rgb(255 255 255 / 0.05),
-		0 1px 2px rgb(0 0 0 / 0.25),
-		0 12px 32px -16px rgb(0 0 0 / 0.45);
+		inset 0 1px 0 rgb(255 255 255 / 0.04),
+		0 1px 2px rgb(0 0 0 / 0.4),
+		0 12px 32px -16px rgb(0 0 0 / 0.6);
 
 	/* From https://modernfontstacks.com: "Geometric Humanist" and "Monospace Code" */
 	--font-sans: Avenir, Montserrat, Corbel, "URW Gothic", source-sans-pro, sans-serif;
@@ -57,7 +53,12 @@
    ========================================================================== */
 * { box-sizing: border-box; }
 
-html { scrollbar-gutter: stable; }
+html {
+	scrollbar-gutter: stable;
+	/* Suppress the browser's square translucent tap overlay on touch devices.
+	   Pressed feedback is provided by the :active styles instead. */
+	-webkit-tap-highlight-color: transparent;
+}
 
 body {
 	margin: 0;
@@ -71,7 +72,7 @@ body {
 	font-variant-numeric: lining-nums;
 	color: var(--text);
 	background:
-		radial-gradient(60rem 28rem at 50% -8rem, color-mix(in srgb, var(--primary) 8%, transparent), transparent 70%),
+		radial-gradient(60rem 28rem at 50% -8rem, color-mix(in srgb, var(--primary) 9%, transparent), transparent 70%),
 		var(--bg);
 	background-repeat: no-repeat;
 	-webkit-font-smoothing: antialiased;
@@ -166,6 +167,8 @@ h1 .brand { color: var(--primary); }
 	background: rgb(255 255 255 / 0.04);
 }
 
+.mode-pill:active { background: rgb(255 255 255 / 0.08); }
+
 .mode-switch input[type="radio"]:checked + .mode-pill {
 	color: var(--text);
 	background: var(--tint);
@@ -200,14 +203,6 @@ h1 .brand { color: var(--primary); }
 	font-weight: 600;
 	letter-spacing: -0.01em;
 	text-align: center;
-}
-
-@media (width < 60rem) {
-	:root {
-		--pad-card: 20px;
-		--pad-item: 14px;
-		--pad-graph: 12px;
-	}
 }
 
 @media (width < 40rem) {
@@ -631,18 +626,22 @@ input[type="file"] {
 	text-transform: uppercase;
 }
 
+/* Mappings are plain sections inside the card, separated by hairlines,
+   so there is only ever one level of box. */
 #mapping-list {
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
-	margin-bottom: 12px;
+	margin-bottom: 8px;
 }
 
 .mapping-item {
-	padding: var(--pad-item);
-	background: var(--surface-2);
-	border: 1px solid var(--border);
-	border-radius: var(--radius);
+	padding-block: 18px;
+	border-top: 1px solid var(--border);
+}
+
+.mapping-item:first-child {
+	padding-top: 4px;
+	border-top: 0;
 }
 
 .mapping-selects {
@@ -721,6 +720,8 @@ input[type="file"] {
 	background: color-mix(in srgb, var(--primary) 6%, transparent);
 }
 
+#add-mapping:active:not(:disabled) { background: color-mix(in srgb, var(--primary) 12%, transparent); }
+
 /* Stack the two selects once there is not enough room side by side */
 @media (width < 48rem) {
 	.mapping-selects {
@@ -743,14 +744,13 @@ input[type="file"] {
 /* ==========================================================================
    Activity grid preview
    ========================================================================== */
+/* Scroll wrapper only. The small padding keeps focus rings of the edge
+   controls from being clipped by overflow. */
 .activity-grid-container {
 	max-width: 100%;
-	margin-top: 16px;
-	padding: var(--pad-graph);
+	margin: 16px -4px 0;
+	padding: 4px;
 	overflow-x: auto;
-	background: var(--field);
-	border: 1px solid var(--border);
-	border-radius: var(--radius);
 	-webkit-overflow-scrolling: touch;
 	scrollbar-width: thin;
 	scrollbar-color: var(--surface-3) transparent;
