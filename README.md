@@ -11,8 +11,8 @@ _Conversion happens entirely in browser due to `sql.js`'s wasm implementation of
 
 ## NewPipe and LibreTube
 <p>
-  <img src="./screenshots/scr1.png" width="65%" />
-  <img src="./screenshots/scr-mobile1.png" width="33.7%" />
+  <img src="./screenshots/scr1.png" width="60%" />
+  <img src="./screenshots/scr-mobile1.png" width="37%" />
 </p>
 
 - If you have used both apps in the past, for best results, use the `Merge` option.
