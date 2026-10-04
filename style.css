@@ -1,6 +1,4 @@
-/* ==========================================================================
-   Tokens
-   ========================================================================== */
+/* Tokens */
 :root {
 	color-scheme: dark;
 
@@ -48,9 +46,7 @@
 	--check-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230d0b1a' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E");
 }
 
-/* ==========================================================================
-   Base
-   ========================================================================== */
+/* Base */
 * { box-sizing: border-box; }
 
 html {
@@ -97,9 +93,7 @@ body {
 }
 
 
-/* ==========================================================================
-   Header
-   ========================================================================== */
+/* Header */
 .app-header {
 	margin-bottom: 28px;
 	text-align: center;
@@ -121,9 +115,7 @@ h1 .brand { color: var(--primary); }
 	text-wrap: balance;
 }
 
-/* ==========================================================================
-   Mode selector (segmented control)
-   ========================================================================== */
+/* Mode selector (segmented control) */
 .mode-selector { margin-bottom: 20px; }
 
 .mode-switch {
@@ -185,9 +177,7 @@ h1 .brand { color: var(--primary); }
 	.mode-switch { grid-template-columns: 1fr; }
 }
 
-/* ==========================================================================
-   Cards
-   ========================================================================== */
+/* Cards */
 .controls-block {
 	margin-bottom: 16px;
 	padding: var(--pad-card);
@@ -209,9 +199,7 @@ h1 .brand { color: var(--primary); }
 	:root { --pad-card: 16px; }
 }
 
-/* ==========================================================================
-   Form controls
-   ========================================================================== */
+/* Form controls */
 select,
 input[type="number"] {
 	min-height: 40px;
@@ -299,9 +287,7 @@ input[type="number"]:focus-visible {
 
 #global-options label:hover { color: var(--text); }
 
-/* ==========================================================================
-   Buttons
-   ========================================================================== */
+/* Buttons */
 button {
 	padding: 0;
 	font: inherit;
@@ -377,9 +363,7 @@ button:disabled { cursor: not-allowed; }
 
 .remove-button:active { background: color-mix(in srgb, var(--error) 18%, var(--surface-3)); }
 
-/* ==========================================================================
-   Merge: playlists and direction
-   ========================================================================== */
+/* Merge: playlists and direction */
 .merge-options {
 	display: flex;
 	flex-wrap: wrap;
@@ -461,9 +445,7 @@ button:disabled { cursor: not-allowed; }
 	.dir-label { min-width: 0; }
 }
 
-/* ==========================================================================
-   File drop zones
-   ========================================================================== */
+/* File drop zones */
 .file-area {
 	display: grid;
 	grid-template-columns: 1fr;
@@ -578,9 +560,7 @@ input[type="file"] {
 	z-index: 10;
 }
 
-/* ==========================================================================
-   Debug log
-   ========================================================================== */
+/* Debug log */
 .section-label {
 	margin: 32px 0 10px 4px;
 	color: var(--text-faint);
@@ -612,9 +592,7 @@ input[type="file"] {
 .log-err { color: var(--error); }
 .log-schema { color: var(--secondary); }
 
-/* ==========================================================================
-   Habit mappings (SimpleTimeTracker / TimeJot -> uHabits)
-   ========================================================================== */
+/* Habit mappings (SimpleTimeTracker / TimeJot -> uHabits) */
 #conversion-mappings { margin-bottom: 20px; }
 
 #conversion-mappings h4 {
@@ -741,9 +719,7 @@ input[type="file"] {
 	.min-duration-input { min-height: 40px; }
 }
 
-/* ==========================================================================
-   Activity grid preview
-   ========================================================================== */
+/* Activity grid preview */
 /* Scroll wrapper only. The small padding keeps focus rings of the edge
    controls from being clipped by overflow. */
 .activity-grid-container {
