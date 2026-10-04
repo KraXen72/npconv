@@ -191,11 +191,15 @@ h1 .brand { color: var(--primary); }
 }
 
 .controls-block > h3 {
-	margin: 0 0 20px;
-	font-size: 1.0625rem;
+	margin: 0 0 24px;
+	padding-bottom: 16px;
+	font-size: clamp(1.1875rem, 5vw, 1.375rem);
 	font-weight: 600;
-	letter-spacing: -0.01em;
+	line-height: 1.25;
+	letter-spacing: -0.015em;
 	text-align: center;
+	text-wrap: balance;
+	border-bottom: 1px solid var(--border);
 }
 
 @media (width < 40rem) {
