@@ -9,7 +9,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
-    rollupOptions: {
+    rolldownOptions: {
       input: path.resolve(process.cwd(), 'index.html')
     }
   }
