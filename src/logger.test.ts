@@ -1,16 +1,12 @@
 import { describe, expect, test } from 'vitest';
 import { log, logStore } from './logger';
 
-/** Returns only the HTML appended by `fn`, since the log store is a shared singleton. */
-function captureLog(fn: () => void): string {
-	const before = logStore.logs();
-	fn();
-	return logStore.logs().slice(before.length);
-}
-
 describe('logger', () => {
-	test('log_wrapsTimestampInDedicatedSpanBeforeMessage', () => {
-		const html = captureLog(() => log('hello'));
+	test('renders the timestamp before the message when an entry is logged', () => {
+		const message = 'hello';
+
+		log(message);
+		const html = logStore.logs();
 
 		expect(html).toMatch(/^<div class="log-info"><span class="log-time">\[[^\]<]+\]<\/span> hello<\/div>$/);
 	});
@@ -21,24 +17,30 @@ describe('logger', () => {
 		['err', 'log-err'],
 		['schema', 'log-schema'],
 		['something-unknown', 'log-info']
-	])('log_type%s_usesClass%s', (type, className) => {
-		const html = captureLog(() => log('msg', type));
+	])('uses class %s → %s when a log type is supplied', (type, className) => {
+		const message = 'msg';
+
+		log(message, type);
+		const html = logStore.logs();
 
 		expect(html.startsWith(`<div class="${className}">`)).toBe(true);
 	});
 
-	test('log_escapesHtmlInMessagesBeforeInnerHtmlRendering', () => {
-		const html = captureLog(() => log('<img src=x onerror=alert(1)> & "quoted"', 'err'));
+	test('escapes HTML when a message contains markup', () => {
+		const message = '<img src=x onerror=alert(1)> & "quoted"';
+
+		log(message, 'err');
+		const html = logStore.logs();
 
 		expect(html).not.toContain('<img');
 		expect(html).toContain('&lt;img src=x onerror=alert(1)&gt; &amp; &quot;quoted&quot;');
 	});
 
-	test('log_appendsEntriesInOrder', () => {
-		const html = captureLog(() => {
-			log('first');
-			log('second');
-		});
+	test('preserves entry order when multiple messages are logged', () => {
+		const messages = ['first', 'second'];
+
+		messages.forEach(message => log(message));
+		const html = logStore.logs();
 
 		expect(html.indexOf('first')).toBeGreaterThan(-1);
 		expect(html.indexOf('second')).toBeGreaterThan(html.indexOf('first'));

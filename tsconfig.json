@@ -3,6 +3,7 @@
     "target": "ES2020",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "paths": { "@tests/*": ["./tests/*"] },
     "lib": ["ES2020", "DOM"],
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
@@ -16,5 +17,5 @@
     "noEmit": true,
     "types": ["vite/client"]
   },
-  "include": ["src"]
+  "include": ["src", "tests"]
 }

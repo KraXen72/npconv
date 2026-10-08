@@ -7,6 +7,10 @@ function createLogStore() {
 
   return {
     logs,
+    /** Remove all entries from the debug console. */
+    clear() {
+      setLogs('');
+    },
     append(msg: string, type = 'info') {
       const timestamp = new Date().toLocaleTimeString();
       const className = type === 'err' ? 'log-err' 
@@ -27,4 +31,3 @@ export const logStore = createLogStore();
 export function log(msg: string, type = "info") {
   logStore.append(msg, type);
 }
-

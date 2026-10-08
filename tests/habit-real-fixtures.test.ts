@@ -1,48 +1,18 @@
-import { readFile } from 'node:fs/promises';
-import initSqlJs, { type SqlJsStatic } from 'sql.js';
-import { beforeAll, describe, expect, test } from 'vitest';
+import { fixtureFile } from '@tests/helpers/fixtures';
+import { describe, expect, test } from 'vitest';
+import { useSqlite } from '@tests/helpers/sqlite';
 import { parseSttBackup } from '../src/converters/stt-uhabits/sttParser';
 import { convertSttToUHabits } from '../src/converters/stt-uhabits/toUHabits';
 import { parseUHabitsBackup } from '../src/converters/stt-uhabits/uhabitsHelper';
 import { parseTimeJotBackup } from '../src/converters/timejot-uhabits/timejotParser';
 import { convertTimeJotToUHabits } from '../src/converters/timejot-uhabits/toUHabits';
 
-let SQL: SqlJsStatic;
-
-const fixtureUrl = (name: string) => new URL(`../fixtures/habit-backfill/${name}`, import.meta.url);
-
-const fileFromBytes = (bytes: Uint8Array, name: string) => ({
-	name,
-	arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
-}) as File;
-
-const fileFromText = (text: string, name: string) => ({
-	name,
-	text: async () => text
-}) as File;
-
-const loadBytes = async (name: string) => {
-	try {
-		return new Uint8Array(await readFile(fixtureUrl(name)));
-	} catch (error) {
-		throw new Error(
-			`Missing real regression fixture: fixtures/habit-backfill/${name}. Add the anonymized fixture file before running the test suite.`,
-			{ cause: error }
-		);
-	}
-};
-const loadText = async (name: string) => new TextDecoder().decode(await loadBytes(name));
-
-beforeAll(async () => {
-	SQL = await initSqlJs();
-});
-
+const sqlite = useSqlite();
 describe('real anonymized habit-backfill fixtures', () => {
-	test('parses a real Simple Time Tracker backup without treating the legacy tag column as a comment', async () => {
-		const parsed = await parseSttBackup(fileFromText(
-			await loadText('fixture-stt-anonymized.backup'),
-			'fixture-stt-anonymized.backup'
-		));
+	test('ignores legacy tag columns when a real STT backup is parsed', async () => {
+		const file = await fixtureFile('habit-backfill/fixture-stt-anonymized.backup');
+
+		const parsed = await parseSttBackup(file);
 
 		expect(parsed.recordTypes.size).toBe(19);
 		expect(parsed.records).toHaveLength(2578);
@@ -52,29 +22,23 @@ describe('real anonymized habit-backfill fixtures', () => {
 		expect(parsed.records.find(record => record.id === 6)?.comment).toBeUndefined();
 	});
 
-	test('parses a real Loop Habit Tracker backup including nullable reminders', async () => {
-		const parsed = await parseUHabitsBackup(
-			fileFromBytes(await loadBytes('fixture-uhabits-anonymized.db'), 'fixture-uhabits-anonymized.db'),
-			SQL
-		);
+	test('normalizes nullable reminders when a real Loop backup is parsed', async () => {
+		const file = await fixtureFile('habit-backfill/fixture-uhabits-anonymized.db');
 
-		try {
-			expect(parsed.allHabits.size).toBe(31);
-			expect(parsed.booleanHabits.size).toBe(24);
-			expect(parsed.numericHabits.size).toBe(7);
-			expect(parsed.repetitions).toHaveLength(8094);
-			expect(parsed.allHabits.get(2)?.reminder_hour).toBe(0);
-			expect(parsed.allHabits.get(2)?.reminder_min).toBe(0);
-		} finally {
-			parsed.db.close();
-		}
+		const parsed = await parseUHabitsBackup(file, sqlite.SQL);
+
+		expect(parsed.allHabits.size).toBe(31);
+		expect(parsed.booleanHabits.size).toBe(24);
+		expect(parsed.numericHabits.size).toBe(7);
+		expect(parsed.repetitions).toHaveLength(8094);
+		expect(parsed.allHabits.get(2)?.reminder_hour).toBe(0);
+		expect(parsed.allHabits.get(2)?.reminder_min).toBe(0);
 	});
 
-	test('parses a real TimeJot export', async () => {
-		const parsed = await parseTimeJotBackup(
-			fileFromBytes(await loadBytes('fixture-timejot-anonymized.db'), 'fixture-timejot-anonymized.db'),
-			SQL
-		);
+	test('loads completed entries when a real TimeJot export is parsed', async () => {
+		const file = await fixtureFile('habit-backfill/fixture-timejot-anonymized.db');
+
+		const parsed = await parseTimeJotBackup(file, sqlite.SQL);
 
 		expect(parsed.events.size).toBe(3);
 		expect(parsed.entries).toHaveLength(204);
@@ -83,55 +47,42 @@ describe('real anonymized habit-backfill fixtures', () => {
 		expect(parsed.entries.filter(entry => entry.eventId === 7)).toHaveLength(1);
 	});
 
-	test('converts real STT history into a real numeric Loop habit without overwriting overlaps', async () => {
-		const result = await convertSttToUHabits(
-			fileFromText(await loadText('fixture-stt-anonymized.backup'), 'fixture-stt-anonymized.backup'),
-			fileFromBytes(await loadBytes('fixture-uhabits-anonymized.db'), 'fixture-uhabits-anonymized.db'),
-			[{ sourceId: 1, uhabitsHabitId: 9, minDuration: 20, numericValue: 1.25, copySourceNotes: true }],
-			SQL
-		);
+	test('preserves overlaps when real STT history is imported into a numeric habit', async () => {
+		const source = await fixtureFile('habit-backfill/fixture-stt-anonymized.backup');
+		const target = await fixtureFile('habit-backfill/fixture-uhabits-anonymized.db');
+		const targetBytes = new Uint8Array(await target.arrayBuffer());
+		const query = 'SELECT habit, timestamp, value, notes FROM Repetitions ORDER BY habit, timestamp';
+		const originalRows = sqlite.open(targetBytes).exec(query)[0].values;
+		const originalKeys = new Set(originalRows.map(row => `${row[0]}:${row[1]}`));
+		const mappings = [{ sourceId: 1, uhabitsHabitId: 9, minDuration: 20, numericValue: 1.25, copySourceNotes: true }];
+		const expectedNewDays = [Date.UTC(2024, 4, 2), Date.UTC(2024, 4, 13), Date.UTC(2024, 5, 20), Date.UTC(2024, 8, 10)];
 
-		const output = new SQL.Database(new Uint8Array(await result.arrayBuffer()));
-		try {
-			const rows = output.exec('SELECT timestamp, value, notes FROM Repetitions WHERE habit = 9 ORDER BY timestamp')[0].values;
-			expect(rows).toHaveLength(487);
+		const result = await convertSttToUHabits(source, target, mappings, sqlite.SQL);
+		const output = sqlite.open(new Uint8Array(await result.arrayBuffer()));
+		const outputRows = output.exec(query)[0].values;
+		const habitRows = outputRows.filter(row => row[0] === 9);
+		const newRows = habitRows.filter(row => Number(row[1]) > Date.UTC(2024, 3, 28));
+		const preservedRows = outputRows.filter(row => originalKeys.has(`${row[0]}:${row[1]}`));
 
-			const newRows = rows.filter(row => Number(row[0]) > Date.UTC(2024, 3, 28));
-			const expectedNewRows = [
-				Date.UTC(2024, 4, 2),
-				Date.UTC(2024, 4, 13),
-				Date.UTC(2024, 5, 20),
-				Date.UTC(2024, 8, 10)
-			];
-			expect(newRows.filter(row => Number(row[1]) === 1250).map(row => Number(row[0]))).toEqual(expectedNewRows);
-
-			for (const timestamp of [Date.UTC(2024, 3, 12), Date.UTC(2024, 3, 22)]) {
-				const matching = rows.filter(row => Number(row[0]) === timestamp);
-				expect(matching).toHaveLength(1);
-				expect(Number(matching[0][1])).toBe(1250);
-			}
-		} finally {
-			output.close();
+		expect(preservedRows).toEqual(originalRows);
+		expect(habitRows).toHaveLength(487);
+		expect(newRows.filter(row => Number(row[2]) === 1250).map(row => Number(row[1]))).toEqual(expectedNewDays);
+		for (const timestamp of [Date.UTC(2024, 3, 12), Date.UTC(2024, 3, 22)]) {
+			const matching = habitRows.filter(row => Number(row[1]) === timestamp);
+			expect(matching).toHaveLength(1);
+			expect(Number(matching[0][2])).toBe(1250);
 		}
 	});
 
-	test('converts a real TimeJot event into a real Loop backup', async () => {
-		const result = await convertTimeJotToUHabits(
-			fileFromBytes(await loadBytes('fixture-timejot-anonymized.db'), 'fixture-timejot-anonymized.db'),
-			fileFromBytes(await loadBytes('fixture-uhabits-anonymized.db'), 'fixture-uhabits-anonymized.db'),
-			[{ sourceId: 6, uhabitsHabitId: 35 }],
-			SQL
-		);
+	test('adds the source day when a real TimeJot event is imported', async () => {
+		const source = await fixtureFile('habit-backfill/fixture-timejot-anonymized.db');
+		const target = await fixtureFile('habit-backfill/fixture-uhabits-anonymized.db');
+		const mappings = [{ sourceId: 6, uhabitsHabitId: 35 }];
 
-		const output = new SQL.Database(new Uint8Array(await result.arrayBuffer()));
-		try {
-			const rows = output.exec('SELECT timestamp, value FROM Repetitions WHERE habit = 35 ORDER BY timestamp')[0].values;
-			expect(rows).toEqual([
-				[Date.UTC(2025, 5, 7), 2],
-				[Date.UTC(2026, 7, 28), 2]
-			]);
-		} finally {
-			output.close();
-		}
+		const result = await convertTimeJotToUHabits(source, target, mappings, sqlite.SQL);
+		const output = sqlite.open(new Uint8Array(await result.arrayBuffer()));
+		const rows = output.exec('SELECT timestamp, value FROM Repetitions WHERE habit = 35 ORDER BY timestamp')[0].values;
+
+		expect(rows).toEqual([[Date.UTC(2025, 5, 7), 2], [Date.UTC(2026, 7, 28), 2]]);
 	});
 });
