@@ -12,12 +12,14 @@
     "test": "vitest run",
     "test:np-lt": "vitest run src/converters/newpipe-libretube",
     "test:coverage": "vitest run --coverage",
-    "test:shuffle": "vitest run --sequence.shuffle --sequence.seed=1729"
+    "test:shuffle": "vitest run --sequence.shuffle --sequence.seed=1729",
+    "test:browser": "playwright test"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@types/jszip": "^3.4.1",
     "@types/sql.js": "^1.4.9",
     "@vitest/coverage-v8": "^5.0.3",

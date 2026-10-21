@@ -6,6 +6,7 @@ Started out as a way to convert between [NewPipe](https://github.com/TeamNewPipe
 - [NewPipe](https://github.com/TeamNewPipe/NewPipe) ⇄ [LibreTube](https://github.com/libre-tube/LibreTube): Merge and Convert
 - [SimpleTimeTracker](https://github.com/Razeeman/Android-SimpleTimeTracker) → [uHabits](https://github.com/iSoron/uhabits)
 - [TimeJot](https://timejot.app) → [uHabits](https://github.com/iSoron/uhabits)
+- Direct uHabits editing: change habit types, fill across types, and copy boolean date ranges
 
 _Conversion happens entirely in browser due to `sql.js`'s wasm implementation of sqlite._  
 
@@ -34,11 +35,27 @@ E.g. If you used newpipe up until 6 months ago, then used libretube from then un
 
 1. Export the source data from Simple Time Tracker (`.backup`) or TimeJot (`.db`).
 2. Create a Loop Habit Tracker database backup (`.db`).
-3. Select the matching route and upload both files.
+3. Select **Import habit data**, choose the source app, and upload both files.
 4. Map source activities/events to boolean or numeric habits. Numeric mappings use a custom value per source day; mappings to the same numeric habit and day are added together.
 5. Review the source, existing, overlap, and new-day counts before creating the filled backup.
 
 _Existing Loop Habit entries are never overwritten._
+
+## Direct uHabits editing
+
+Select **Edit uHabits** and upload a Loop database backup (`.db`). Choose:
+
+- **Change habit type**: convert a numerical habit to boolean using an inclusive threshold (at least / at most), or a boolean habit to numerical using a chosen value for checked days, unit, and goal. This converts the entire history.
+- **Fill from another habit**: copy boolean history into an existing numerical habit or numerical history into a boolean habit. Optionally restrict the dates.
+- **Copy boolean date range**: copy explicit entries and notes between boolean habits over an inclusive calendar date range.
+
+Fill/copy preserve existing destination entries unless you select **Replace existing destination entries on source days**. Missing source days never erase destination entries. Notes follow copied entries; unrelated habits and backup metadata are preserved.
+
+For boolean → numerical conversion, unchecked becomes zero; skipped, automatic, and unknown marks become unknown. Numerical values round to three decimal places, matching Loop's storage. These encodings follow [Loop's entry definitions](https://github.com/iSoron/uhabits/blob/master/uhabits-core/src/jvmMain/java/org/isoron/uhabits/core/models/Entry.kt).
+
+The live activity graph previews the exact result as settings change. Switch between source, destination before editing, and result; tap a day for its value and notes.
+
+Each operation downloads a separate backup and starts from the uploaded file. Upload the result to chain further edits.
 
 ### Disclaimer
 > **Always make backups before attempting any operation!**    

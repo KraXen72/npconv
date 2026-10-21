@@ -1,7 +1,6 @@
 import type { Component } from 'solid-js';
 import { createSignal, createEffect, Show } from 'solid-js';
 import { log } from '../logger';
-import type { Mode } from './ModeSelector';
 
 interface FileConfig {
   title: string;
@@ -11,29 +10,28 @@ interface FileConfig {
 
 interface Props {
   id: string;
-  mode: () => Mode;
+  resetKey: string;
+  config: FileConfig;
   onFileChange: (file: File | null) => void;
-  configs: Record<Mode, FileConfig>;
 }
 
+/** Accept backup files by selection or drop and clear the displayed upload when its file group changes. */
 export const FileZone: Component<Props> = (props) => {
   const [fileName, setFileName] = createSignal<string>('');
   let fileInputRef: HTMLInputElement | undefined;
-  let prevModeType: 'newpipe' | 'stt' | 'timejot' = 'newpipe';
+  let previousResetKey = props.resetKey;
 
-  const config = () => props.configs[props.mode()];
+  const config = () => props.config;
 
-  // Clear file when switching between converter types
   createEffect(() => {
-    const currentMode = props.mode();
-    const currentModeType = (currentMode === 'merge' || currentMode === 'convert') ? 'newpipe' : currentMode;
+    const resetKey = props.resetKey;
     
-    if (prevModeType !== currentModeType) {
+    if (previousResetKey !== resetKey) {
       if (fileInputRef) fileInputRef.value = '';
       setFileName('');
     }
     
-    prevModeType = currentModeType;
+    previousResetKey = resetKey;
   });
 
   const handleFileChange = (files: FileList | null) => {

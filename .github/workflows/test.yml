@@ -40,5 +40,19 @@ jobs:
           path: coverage/
           if-no-files-found: ignore
 
+      - name: Install browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Browser tests
+        run: pnpm test:browser
+
+      - name: Upload browser failures
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-failures
+          path: test-results/
+          if-no-files-found: ignore
+
       - name: Build
         run: pnpm build

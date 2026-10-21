@@ -1,9 +1,11 @@
-import { createSignal, Show, type Component, onCleanup } from 'solid-js';
-import { ModeSelector, type Mode } from './ModeSelector';
+import { createSignal, Show, type Component, type JSX, onCleanup } from 'solid-js';
+import { ModeSelector } from './ModeSelector';
+import { getFileGroup, type Mode } from '../workflows';
 import { FileZone } from './FileZone';
 import { MergeControls } from './MergeControls';
 import { ConvertControls } from './ConvertControls';
 import { SttControls } from './SttControls';
+import { UHabitsControls } from './UHabitsControls';
 import { DebugConsole } from './DebugConsole';
 import { log } from '../logger';
 import { convertToNewPipe } from '../converters/newpipe-libretube/toNewPipe';
@@ -27,6 +29,16 @@ export const App: Component<Props> = (props) => {
   const [processing, setProcessing] = createSignal(false);
   const [habitMappings, setHabitMappings] = createSignal<ConversionMapping[]>([]);
   const [mappingResetToken, setMappingResetToken] = createSignal(0);
+  const [hasFormChanges, setHasFormChanges] = createSignal(false);
+  const [hasEditorFile, setHasEditorFile] = createSignal(false);
+
+  const trackFormChanges: JSX.EventHandler<HTMLDivElement, Event> = (event) => {
+    const control = event.target;
+    if (!(control instanceof HTMLInputElement || control instanceof HTMLSelectElement)) return;
+    // workflow controls have their own guard; global options survive workflow changes
+    if (control.closest('.mode-selector, #global-options') || control.type === 'file') return;
+    setHasFormChanges(true);
+  };
 
   // Create STT store
   const sttStore = createSttStore(props.SQL);
@@ -37,13 +49,25 @@ export const App: Component<Props> = (props) => {
     if (data?.db) data.db.close();
   });
 
+  const fileMode = () => {
+    const selected = mode();
+    return selected === 'uhabits' ? undefined : selected;
+  };
+
   const isNewPipeMode = () => mode() === 'merge' || mode() === 'convert';
 
-  // Clear files when switching between different converter types
-  let prevModeType: 'newpipe' | 'stt' | 'timejot' = 'newpipe';
   const handleModeChange = (newMode: Mode) => {
-    const newModeType = (newMode === 'merge' || newMode === 'convert') ? 'newpipe' : newMode;
-    if (prevModeType !== newModeType) {
+    if (newMode === mode()) return;
+    const clearsFiles = getFileGroup(mode()) !== getFileGroup(newMode);
+    const hasFiles = !!leftFile() || !!rightFile() || hasEditorFile();
+    const discardsProgress = hasFormChanges() || (clearsFiles && hasFiles);
+    if (discardsProgress && !window.confirm('Discard your changes? Switching workflows will clear your current files or settings.')) {
+      return;
+    }
+
+    setHasFormChanges(false);
+    if (clearsFiles) {
+      setHasEditorFile(false);
       setLeftFile(null);
       setRightFile(null);
       sttStore.clearSources();
@@ -51,55 +75,35 @@ export const App: Component<Props> = (props) => {
       setHabitMappings([]);
       setMappingResetToken(token => token + 1);
     }
-    prevModeType = newModeType;
     setMode(newMode);
   };
 
-  const leftFileConfigs = {
-    merge: {
-      title: 'NewPipe Backup (.zip)',
-      hint: 'Contains newpipe.db<br>click/drop file to upload',
-      accept: '.zip'
-    },
-    convert: {
-      title: 'NewPipe Backup (.zip)',
-      hint: 'Contains newpipe.db<br>click/drop file to upload',
-      accept: '.zip'
-    },
-    stt: {
-      title: 'Simple Time Tracker (.backup)',
-      hint: 'Upload your .backup file<br>click/drop file to upload',
-      accept: '.backup'
-    },
-    timejot: {
-      title: 'TimeJot Export (.db)',
-      hint: 'Upload your TimeJot .db file<br>click/drop file to upload',
-      accept: '.db'
+  const leftFileConfig = (selectedMode: Exclude<Mode, 'uhabits'>) => {
+    switch (selectedMode) {
+      case 'merge':
+      case 'convert':
+        return {
+          title: 'NewPipe Backup (.zip)',
+          hint: 'Contains newpipe.db<br>click/drop file to upload',
+          accept: '.zip',
+        };
+      case 'timejot':
+        return {
+          title: 'TimeJot Export (.db)',
+          hint: 'Upload your TimeJot .db file<br>click/drop file to upload',
+          accept: '.db',
+        };
+      case 'stt':
+        return {
+          title: 'Simple Time Tracker (.backup)',
+          hint: 'Upload your .backup file<br>click/drop file to upload',
+          accept: '.backup',
+        };
     }
   };
-
-  const rightFileConfigs = {
-    merge: {
-      title: 'LibreTube Backup (.json)',
-      hint: 'JSON export file<br>click/drop file to upload',
-      accept: '.json'
-    },
-    convert: {
-      title: 'LibreTube Backup (.json)',
-      hint: 'JSON export file<br>click/drop file to upload',
-      accept: '.json'
-    },
-    stt: {
-      title: 'uHabits Backup (.db)',
-      hint: 'Upload your .db file<br>click/drop file to upload',
-      accept: '.db'
-    },
-    timejot: {
-      title: 'uHabits Backup (.db)',
-      hint: 'Upload your .db file<br>click/drop file to upload',
-      accept: '.db'
-    }
-  };
+  const rightFileConfig = () => isNewPipeMode()
+    ? { title: 'LibreTube Backup (.json)', hint: 'JSON export file<br>click/drop file to upload', accept: '.json' }
+    : { title: 'uHabits Backup (.db)', hint: 'Upload your .db file<br>click/drop file to upload', accept: '.db' };
 
   const handleLeftFileChange = async (file: File | null) => {
     setLeftFile(file);
@@ -222,13 +226,17 @@ export const App: Component<Props> = (props) => {
   };
 
   return (
-    <div class="container">
+    <div class="container" onInput={trackFormChanges} onChange={trackFormChanges}>
       <header class="app-header">
         <h1><span class="brand">npconv</span> backup converter</h1>
         <p class="subtitle">Convert and merge app backups. Everything runs in your browser; your files never leave your device.</p>
       </header>
 
-      <ModeSelector mode={mode} setMode={handleModeChange} />
+      <ModeSelector mode={mode} setMode={handleModeChange} disabled={processing()} />
+
+      <Show when={mode() === 'uhabits'}>
+        <UHabitsControls SQL={props.SQL} onProgressChange={setHasEditorFile} />
+      </Show>
 
       <Show when={mode() === 'merge'}>
         <MergeControls onMerge={(dir, playlist) => processBackup(dir, playlist)} />
@@ -246,6 +254,7 @@ export const App: Component<Props> = (props) => {
           resetToken={mappingResetToken()}
           onConvert={handleHabitConvert}
           onMappingsChange={setHabitMappings}
+          onSetupChange={() => setHasFormChanges(true)}
         />
       </Show>
 
@@ -263,20 +272,24 @@ export const App: Component<Props> = (props) => {
         </div>
       </Show>
 
-      <section id="main-file-area" class="file-area">
-        <FileZone
-          id="zone-left"
-          mode={mode}
-          configs={leftFileConfigs}
-          onFileChange={handleLeftFileChange}
-        />
-        <FileZone
-          id="zone-right"
-          mode={mode}
-          configs={rightFileConfigs}
-          onFileChange={handleRightFileChange}
-        />
-      </section>
+      <Show when={fileMode()}>
+        {(selectedMode) => (
+          <section id="main-file-area" class="file-area">
+            <FileZone
+              id="zone-left"
+              resetKey={getFileGroup(selectedMode())}
+              config={leftFileConfig(selectedMode())}
+              onFileChange={handleLeftFileChange}
+            />
+            <FileZone
+              id="zone-right"
+              resetKey={getFileGroup(selectedMode())}
+              config={rightFileConfig()}
+              onFileChange={handleRightFileChange}
+            />
+          </section>
+        )}
+      </Show>
 
       <DebugConsole />
     </div>

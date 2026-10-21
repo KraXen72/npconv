@@ -1,5 +1,5 @@
 import { createSignal, For, onMount, onCleanup, createEffect, type Component } from 'solid-js';
-import { MappingItem, type HabitSourceKind } from './MappingItem';
+import { MappingItem, type HabitSourceKind, type MappingItemApi } from './MappingItem';
 import type { SttStore } from '../stores/sttStore';
 import type { ConversionMapping } from '../schemas/uhabits';
 
@@ -8,6 +8,7 @@ interface Props {
   sttStore: SttStore;
   onConvert: () => void;
   onMappingsChange: (mappings: ConversionMapping[]) => void;
+  onSetupChange: () => void;
   sourceKind: HabitSourceKind;
   resetToken: number;
 }
@@ -16,10 +17,7 @@ interface MappingRef {
   id: number;
 }
 
-interface MappingItemApi {
-  getMapping: () => ConversionMapping | null;
-}
-
+/** Manage import mappings and enable export when at least one complete mapping is available. */
 export const SttControls: Component<Props> = (props) => {
   const [mappings, setMappings] = createSignal<MappingRef[]>([]);
   const [nextId, setNextId] = createSignal(0);
@@ -38,7 +36,13 @@ export const SttControls: Component<Props> = (props) => {
     setMappings([...mappings(), { id }]);
   };
 
+  const addMappingFromInput = () => {
+    props.onSetupChange();
+    addMapping();
+  };
+
   const removeMapping = (id: number) => {
+    props.onSetupChange();
     mappingRefs.delete(id);
     setMappings(mappings().filter(m => m.id !== id));
     queueMicrotask(emitMappings);
@@ -108,7 +112,7 @@ export const SttControls: Component<Props> = (props) => {
           <For each={mappings()}>
             {(mapping) => (
               <MappingItem
-                ref={(api: any) => {
+                ref={(api) => {
                   if (api) mappingRefs.set(mapping.id, api);
                   else mappingRefs.delete(mapping.id);
                 }}
@@ -123,7 +127,7 @@ export const SttControls: Component<Props> = (props) => {
             )}
           </For>
         </div>
-        <button id="add-mapping" type="button" onClick={addMapping}>
+        <button id="add-mapping" type="button" onClick={addMappingFromInput}>
           + Add Mapping
         </button>
       </div>

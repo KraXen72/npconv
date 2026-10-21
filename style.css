@@ -123,7 +123,7 @@ h1 .brand { color: var(--primary); }
 
 .mode-switch {
 	display: grid;
-	grid-template-columns: repeat(2, 1fr);
+	grid-template-columns: repeat(3, 1fr);
 	gap: 4px;
 	padding: 4px;
 	background: var(--surface);
@@ -826,4 +826,168 @@ input[type="file"] {
 	width: 10px;
 	height: 10px;
 	border-radius: 3px;
+}
+
+/* Contextual workflow controls */
+.workflow-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.workflow-options select { flex: 1; }
+
+/* Keep editor controls and their preview together on narrow screens. */
+.habit-editor { margin-top: 20px; }
+.habit-editor fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.edit-workspace { display: grid; gap: 12px; }
+.editor-fields {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) minmax(0, 3fr);
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.editor-fields select,
+.editor-fields input { width: 100%; min-width: 0; }
+
+.editor-fields input[type="text"],
+.editor-fields input[type="date"] {
+  min-height: var(--control-h);
+  padding: 0 12px;
+  font: inherit;
+  color: var(--text);
+  background: var(--field);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.overwrite-option {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+  font-size: 15px;
+}
+
+.editor-error { margin: 0; color: var(--error); font-size: 15px; }
+.edit-workspace .controls { margin: 0; }
+.edit-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.edit-notes span + span::before { content: "·"; margin-right: 12px; }
+
+/* Only the calendar scrolls horizontally; navigation and legends stay in view. */
+.mapping-item .activity-grid-container { overflow: visible; }
+.activity-grid-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding: 4px;
+}
+
+.edit-preview {
+  min-width: 0;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.preview-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.preview-tabs { display: flex; gap: 4px; }
+.preview-tabs button {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.preview-tabs button[aria-pressed="true"] {
+  background: var(--tint);
+  border-color: var(--primary);
+  color: var(--text);
+}
+
+.edit-preview .grid-year-nav { margin: 0; gap: 4px; }
+.edit-preview .grid-year-display { min-width: 3rem; }
+.preview-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin-top: 8px;
+  font-size: 15px;
+}
+
+.preview-heading span:last-child { color: var(--text-muted); }
+.edit-preview .activity-grid-container { margin-top: 4px; }
+.preview-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 15px;
+  color: var(--text-muted);
+}
+
+.preview-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.preview-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+.written-swatch { border: 1px solid #b7a5ee; background: var(--surface-3); }
+.preview-day-detail { display: block; margin-top: 6px; overflow-wrap: anywhere; font-size: 15px; }
+
+@media (max-width: 600px) {
+  .mode-switch { grid-template-columns: 1fr; }
+  .habit-editor { padding: 14px; }
+  .edit-workspace { gap: 8px; }
+  .editor-fields {
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 6px 8px;
+    font-size: 15px;
+  }
+
+  .editor-fields select,
+  .habit-editor .editor-fields input { min-height: 38px; border-radius: 8px; }
+
+  .editor-fields input { padding-inline: 8px; }
+  .edit-preview { padding-top: 8px; }
+  .preview-toolbar { gap: 4px; }
+  .preview-tabs button { padding: 5px 7px; }
+  .preview-legend { gap: 3px 8px; }
+  .edit-preview .grid-year-nav { gap: 2px; }
+  .edit-preview .grid-year-nav button { width: 28px; min-width: 28px; height: 28px; padding: 0; }
+  .edit-preview .grid-year-display { min-width: 2.75rem; }
+
+  .mapping-selects {
+    grid-template-areas: "src remove" "dst remove";
+    gap: 6px 8px;
+    margin-bottom: 8px;
+  }
+
+  .mapping-arrow { display: none; }
+  .mapping-options {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px 14px;
+    font-size: 15px;
+  }
+
+  .mapping-options input[type="number"] { min-height: 38px; }
+  .mapping-item .activity-grid-container { margin-top: 8px; }
+  .mapping-item .grid-year-nav { margin-bottom: 6px; }
+  .mapping-item .activity-legend { gap: 4px; margin-top: 6px; padding-top: 6px; }
+  .mapping-item .activity-legend-title { display: none; }
+  .mapping-item .activity-legend-item { padding: 4px 7px; font-size: 15px; }
 }

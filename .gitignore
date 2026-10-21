@@ -10,3 +10,6 @@ coverage/
 repomix-output.xml
 *:Zone.Identifier
 .playwright-cli
+
+test-results/
+playwright-report/

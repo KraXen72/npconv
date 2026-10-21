@@ -1,4 +1,4 @@
-import { defineConfig, mergeConfig } from 'vitest/config';
+import { configDefaults, defineConfig, mergeConfig } from 'vitest/config';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import viteConfig from './vite.config';
@@ -12,6 +12,7 @@ export default mergeConfig(viteConfig, defineConfig({
   },
   test: {
     environment: 'node',
+    exclude: [...configDefaults.exclude, 'tests/browser/**'],
     provide: { fixturesRoot: resolve(projectRoot, 'fixtures') },
     setupFiles: ['./tests/setup.ts'],
     testTimeout: 10000,

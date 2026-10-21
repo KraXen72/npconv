@@ -2,25 +2,14 @@ import { createSignal, createEffect, createMemo, onMount, onCleanup, untrack, ty
 import type { ParsedSttBackup } from '../schemas/stt';
 import type { ParsedTimeJotBackup } from '../schemas/timejot';
 import type { ConversionMapping, ParsedUHabitsBackup, UHabitsHabit } from '../schemas/uhabits';
+import type { ActivityData, ActivityGrid, CellClickDetail } from 'activity-grid';
+import { scrollToLatestActivity } from './activityGraph';
 import { timestampToDayKey } from '../converters/stt-uhabits/uhabitsHelper';
 import { invertTimeJotDays, timeJotDayKey } from '../converters/timejot-uhabits/timejotParser';
-
-declare module "solid-js" {
-  namespace JSX {
-    interface IntrinsicElements {
-      'activity-grid': any;
-    }
-  }
-}
 
 export type HabitSourceKind = 'stt' | 'timejot';
 
 type GraphCategory = 'source' | 'existing' | 'overlap';
-
-interface GridDataPoint {
-  date: string;
-  count: number;
-}
 
 // Keep in sync with --secondary / --primary in style.css
 const GRAPH_COLORS: Record<GraphCategory, string> = {
@@ -61,8 +50,8 @@ function categoryForCount(count: number): GraphCategory | null {
  * count on each cell but not a per-cell color callback, so the final semantic
  * colors are applied to its open shadow DOM instead.
  */
-function applyGraphCellColors(grid: any, focused: GraphCategory | null): void {
-  const shadowRoot = grid?.shadowRoot as ShadowRoot | undefined;
+function applyGraphCellColors(grid: ActivityGrid | undefined, focused: GraphCategory | null): void {
+  const shadowRoot = grid?.shadowRoot;
   if (!shadowRoot) return;
 
   shadowRoot.querySelectorAll<HTMLElement>('.cell[data-count]').forEach(cell => {
@@ -74,6 +63,10 @@ function applyGraphCellColors(grid: any, focused: GraphCategory | null): void {
   });
 }
 
+export interface MappingItemApi {
+  getMapping: () => ConversionMapping | null;
+}
+
 interface Props {
   mappingId: number;
   sourceKind: HabitSourceKind;
@@ -82,9 +75,10 @@ interface Props {
   uhabitsData: ParsedUHabitsBackup | null;
   onRemove: () => void;
   onChange: () => void;
-  ref?: (api: { getMapping: () => ConversionMapping | null }) => void;
+  ref?: (api: MappingItemApi | null) => void;
 }
 
+/** Configure one import mapping and preview source days against existing habit history. */
 export const MappingItem: Component<Props> = (props) => {
   const [sourceId, setSourceId] = createSignal('');
   const [uhabitsHabitId, setUhabitsHabitId] = createSignal('');
@@ -96,7 +90,7 @@ export const MappingItem: Component<Props> = (props) => {
   const [currentYear, setCurrentYear] = createSignal(new Date().getFullYear());
   const [showGrid, setShowGrid] = createSignal(false);
   const [yearInitialized, setYearInitialized] = createSignal(false);
-  const [gridData, setGridData] = createSignal<GridDataPoint[]>([]);
+  const [gridData, setGridData] = createSignal<ActivityData[]>([]);
   const [lockedCategory, setLockedCategory] = createSignal<GraphCategory | null>(null);
   const [hoveredLegendCategory, setHoveredLegendCategory] = createSignal<GraphCategory | null>(null);
   const activeCategory = createMemo(() => hoveredLegendCategory() ?? lockedCategory());
@@ -119,7 +113,8 @@ export const MappingItem: Component<Props> = (props) => {
     }
   ];
 
-  let gridRef: any;
+  let gridRef: ActivityGrid | undefined;
+  let lastGraphPosition = '';
 
   const sourceOptions = createMemo(() => {
     if (props.sourceKind === 'timejot') {
@@ -241,6 +236,11 @@ export const MappingItem: Component<Props> = (props) => {
       gridRef.endDate = `${displayYear}-12-31`;
       gridRef.startDate = `${displayYear}-01-01`;
       applyGraphCellColors(gridRef, untrack(activeCategory));
+      const positionKey = `${sourceId()}:${uhabitsHabitId()}:${displayYear}`;
+      if (positionKey !== lastGraphPosition) {
+        lastGraphPosition = positionKey;
+        scrollToLatestActivity(gridRef, allData.map(day => day.date), displayYear);
+      }
     }
   });
 
@@ -321,11 +321,11 @@ export const MappingItem: Component<Props> = (props) => {
 
   let removeGridClickListener: (() => void) | undefined;
 
-  const attachGridClickListener = (grid: any) => {
+  const attachGridClickListener = (grid: ActivityGrid) => {
     removeGridClickListener?.();
 
     const handleGridClick = (event: Event) => {
-      const category = categoryForCount(Number((event as CustomEvent<{ count: number }>).detail?.count));
+      const category = categoryForCount(Number((event as CustomEvent<CellClickDetail>).detail?.count));
       if (!category) return;
 
       event.stopPropagation();
@@ -343,7 +343,7 @@ export const MappingItem: Component<Props> = (props) => {
 
   onCleanup(() => {
     removeGridClickListener?.();
-    props.ref?.(null as any);
+    props.ref?.(null);
   });
 
   return (
@@ -420,7 +420,7 @@ export const MappingItem: Component<Props> = (props) => {
               min="0"
               step="1"
               title="Minimum duration in minutes"
-              onChange={(e) => setMinDuration(parseInt(e.currentTarget.value) || 0)}
+              onInput={(e) => setMinDuration(parseInt(e.currentTarget.value) || 0)}
             />
             <span class="option-unit">min</span>
           </label>
@@ -428,7 +428,7 @@ export const MappingItem: Component<Props> = (props) => {
 
         <Show when={selectedHabit()?.type === 1}>
           <label class="option-item">
-            <span class="option-label">Value per source day:</span>
+            <span class="option-label">Value / day:</span>
             <input
               type="number"
               class="min-duration-input"
@@ -436,7 +436,7 @@ export const MappingItem: Component<Props> = (props) => {
               min="0.001"
               step="0.001"
               title="Value added for each source day"
-              onChange={(e) => setNumericValue(Number(e.currentTarget.value))}
+              onInput={(e) => setNumericValue(Number(e.currentTarget.value))}
             />
             <span class="option-unit">{selectedHabit()?.unit || 'units'}</span>
           </label>
@@ -454,7 +454,7 @@ export const MappingItem: Component<Props> = (props) => {
 
         <Show when={props.sourceKind === 'timejot' && selectedHabit()}>
           <label class="option-item" title="Count TimeJot entries during the first hours after midnight toward the previous calendar day">
-            <span class="option-label">After-midnight buffer:</span>
+            <span class="option-label">Day starts:</span>
             <input
               type="number"
               class="min-duration-input"
@@ -463,9 +463,9 @@ export const MappingItem: Component<Props> = (props) => {
               max="12"
               step="1"
               title="Hours after midnight to count toward the previous day; 0 disables this"
-              onChange={(e) => setTimeJotRolloverHours(Math.max(0, Math.min(12, parseInt(e.currentTarget.value, 10) || 0)))}
+              onInput={(e) => setTimeJotRolloverHours(Math.max(0, Math.min(12, parseInt(e.currentTarget.value, 10) || 0)))}
             />
-            <span class="option-unit">hours</span>
+            <span class="option-unit">h</span>
           </label>
         </Show>
 
@@ -477,7 +477,7 @@ export const MappingItem: Component<Props> = (props) => {
               checked={invertTimeJot()}
               onChange={(e) => setInvertTimeJot(e.currentTarget.checked)}
             />
-            <span class="option-label">Invert TimeJot entries (fill missing days)</span>
+            <span class="option-label">Fill missing days</span>
           </label>
         </Show>
       </div>
@@ -493,22 +493,20 @@ export const MappingItem: Component<Props> = (props) => {
               <Chevron direction="right" />
             </button>
           </div>
-          <activity-grid
-            ref={(element: any) => {
-              gridRef = element;
-              if (element) {
+          <div class="activity-grid-scroll">
+            <activity-grid
+              ref={(element: ActivityGrid) => {
+                gridRef = element;
                 element.colors = GRAPH_BASE_COLORS;
                 element.emptyColor = GRAPH_EMPTY_COLOR;
                 attachGridClickListener(element);
                 applyGraphCellColors(element, untrack(activeCategory));
-              } else {
-                removeGridClickListener?.();
-              }
-            }}
-            start-week-on-monday
-            class="habit-preview-grid"
-            dark-mode
-          />
+              }}
+              start-week-on-monday
+              class="habit-preview-grid"
+              dark-mode
+            />
+          </div>
           <div class="activity-legend" role="group" aria-label="Activity graph legend">
             <span class="activity-legend-title">Legend</span>
             <For each={legendItems}>

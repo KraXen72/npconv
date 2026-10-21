@@ -49,9 +49,20 @@ or local, untracked backups.
 
 # Remaining coverage gaps
 
-This is a Node-based suite. UI components, browser startup, WASM asset loading,
-and browser download wrappers have no automated coverage. No UI testing
-infrastructure is installed.
+Browser regressions use Playwright and exercise workflow selection, WASM startup,
+file uploads, both directions of habit type conversion and filling, boolean range
+copying, invalid inputs, live preview values, mobile layout, and downloaded SQLite content.
+Mobile tests focus every editor control at 320px and 390px widths, and import
+mapping controls at 320px. They verify the graph stays in the same 640px viewport. They use a
+synthetic fruit-named backup and the existing anonymized real fixture.
+
+```sh
+pnpm exec playwright install chromium
+pnpm test:browser
+```
+
+Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use an existing Chromium binary.
+Failure traces are saved under `test-results/`.
 
 NewPipe/LibreTube still has untested branches for legacy input variants and
 several recoverable errors. STT's malformed timestamp fallback contains branches
