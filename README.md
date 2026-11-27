@@ -27,6 +27,35 @@ E.g. If you used newpipe up until 6 months ago, then used libretube from then un
 3. load your current, latest libretube export
 4. click `Merge into NewPipe`
 
+### Search watch history
+
+1. Under **Video backups**, select **Search watch history**.
+2. Upload a NewPipe ZIP, a LibreTube JSON export, or both.
+3. Enter search words and optionally choose a field. Select a result to open the video in a new tab.
+
+Search covers video titles, exported descriptions, video IDs, and channel names or URLs. You can also paste a YouTube video URL. All search words must match across the selected fields. Matching ignores case and accents, supports word prefixes of at least two characters, and allows one typo in words of at least four characters. The Video ID field uses exact and prefix matching.
+
+Results favor video IDs, titles, and channels over descriptions. An empty search shows the most recently watched videos. Repeated watches and videos shared by both backups appear as one result, with 40 results per page.
+
+Each result shows available first and last recorded watch dates, upload date, and watch counts. NewPipe dates come from its history rows, and its count is the sum of their repeat counts. LibreTube dates and counts come from fields present in the export. Counts remain separate for each app because histories can overlap. The earliest recorded watch covers the history saved in the uploaded backup. Dates and counts omitted by an export remain unavailable.
+
+Descriptions are searchable when the export includes them. Standard NewPipe backups and many LibreTube exports omit video descriptions. The page shows how many videos have descriptions.
+
+MiniSearch builds an in-memory index in a Web Worker. Backup reading, indexing, and queries run off the UI thread; typing uses a 100 ms debounce. Only the current result page reaches the UI. Replacing or clearing an upload discards its index. All processing stays on your device, and video pages load when you open a result.
+
+### Development
+
+| Command | Action |
+| --- | --- |
+| `pnpm install` | Install dependencies |
+| `pnpm dev` | Run the local Vite development server |
+| `pnpm build` | Build the app into `dist/` |
+| `pnpm preview` | Run the built app locally |
+| `pnpm lint` | Check TypeScript types |
+| `pnpm test` | Run automated tests |
+| `pnpm test:browser` | Run browser workflow tests |
+
+
 ## uHabits (Loop Habit Tracker) backfill
 
 <p align="center">

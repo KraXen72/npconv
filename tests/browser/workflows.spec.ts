@@ -81,6 +81,7 @@ test('workflow selector exposes only supported app routes and resets files betwe
   await expect(page.locator('#video-action option')).toHaveText([
     'Merge backups',
     'Convert backup',
+    'Search watch history',
   ]);
   await page.locator('#video-action').selectOption('convert');
   await expect(page.getByRole('button', { name: 'Target: NewPipe' })).toBeVisible();

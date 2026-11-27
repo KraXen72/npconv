@@ -8,6 +8,7 @@ export const WORKFLOWS = [
     modes: [
       { value: 'merge', label: 'Merge backups' },
       { value: 'convert', label: 'Convert backup' },
+      { value: 'history', label: 'Search watch history' },
     ],
   },
   {

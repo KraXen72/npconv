@@ -7,6 +7,7 @@ import { ConvertControls } from './ConvertControls';
 import { SttControls } from './SttControls';
 import { UHabitsControls } from './UHabitsControls';
 import { DebugConsole } from './DebugConsole';
+import { HistorySearch } from './HistorySearch';
 import { log } from '../logger';
 import { convertToNewPipe } from '../converters/newpipe-libretube/toNewPipe';
 import { convertToLibreTube } from '../converters/newpipe-libretube/toLibreTube';
@@ -36,7 +37,7 @@ export const App: Component<Props> = (props) => {
     const control = event.target;
     if (!(control instanceof HTMLInputElement || control instanceof HTMLSelectElement)) return;
     // workflow controls have their own guard; global options survive workflow changes
-    if (control.closest('.mode-selector, #global-options') || control.type === 'file') return;
+    if (control.closest('.mode-selector, #global-options, .history-search') || control.type === 'file') return;
     setHasFormChanges(true);
   };
 
@@ -82,6 +83,7 @@ export const App: Component<Props> = (props) => {
     switch (selectedMode) {
       case 'merge':
       case 'convert':
+      case 'history':
         return {
           title: 'NewPipe Backup (.zip)',
           hint: 'Contains newpipe.db<br>click/drop file to upload',
@@ -101,7 +103,7 @@ export const App: Component<Props> = (props) => {
         };
     }
   };
-  const rightFileConfig = () => isNewPipeMode()
+  const rightFileConfig = () => isNewPipeMode() || mode() === 'history'
     ? { title: 'LibreTube Backup (.json)', hint: 'JSON export file<br>click/drop file to upload', accept: '.json' }
     : { title: 'uHabits Backup (.db)', hint: 'Upload your .db file<br>click/drop file to upload', accept: '.db' };
 
@@ -289,6 +291,10 @@ export const App: Component<Props> = (props) => {
             />
           </section>
         )}
+      </Show>
+
+      <Show when={mode() === 'history'}>
+        <HistorySearch newpipe={leftFile()} libretube={rightFile()} />
       </Show>
 
       <DebugConsole />
